@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helpdesk-telegram-bot"
+version = "0.1.0"
+description = "Automated helpdesk ticket management system with Telegram, AI classification, PostgreSQL, and Notion"
+requires-python = ">=3.13"
+authors = [
+    {name = "Service Desk Team"}
+]
+
+dependencies = [
+    "fastapi==0.104.1",
+    "uvicorn[standard]==0.24.0",
+    "aiogram==3.3.0",
+    "sqlalchemy==2.0.23",
+    "alembic==1.13.0",
+    "psycopg[binary]==3.17.0",
+    "pydantic==2.5.0",
+    "pydantic-settings==2.1.0",
+    "python-dotenv==1.0.0",
+    "httpx==0.25.1",
+    "aiohttp==3.9.1",
+    "python-telegram-bot==20.5",
+    "notion-client==2.2.1",
+    "structlog==24.1.0",
+    "python-json-logger==2.0.7",
+    "openrouter==0.1.6",
+    "tenacity==8.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==7.4.3",
+    "pytest-asyncio==0.21.1",
+    "pytest-cov==4.1.0",
+    "black==23.12.1",
+    "flake8==6.1.0",
+    "mypy==1.7.1",
+    "isort==5.13.2",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_mode = 3
+include_trailing_comma = true
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
