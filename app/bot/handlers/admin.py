@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards import (
     get_admin_main_menu,
+    get_admin_nav_keyboard,
     get_cancel_keyboard,
     get_create_role_keyboard,
     get_delete_confirmation_keyboard,
@@ -40,7 +41,11 @@ async def _assert_admin(user_service: UserService, telegram_id: int) -> None:
 
 
 async def _show_user_list(target: Message | CallbackQuery, state: FSMContext, user_service: UserService) -> None:
-    """Fetch all users and display the list with inline keyboard."""
+    """Fetch all users and display the list with inline keyboard.
+
+    Also replaces the reply keyboard with a navigation button so the user is
+    never stuck — main-menu button handlers only fire in main_menu state.
+    """
     users = await user_service.get_all_users()
     msg = target if isinstance(target, Message) else target.message
 
@@ -50,11 +55,37 @@ async def _show_user_list(target: Message | CallbackQuery, state: FSMContext, us
         return
 
     lines = [f"{_ROLE_LABELS[u.role]} — {u.full_name} (@{u.username or 'N/A'})" for u in users]
+    # Inline keyboard for user selection.
     await msg.answer(
         "👥 Користувачі:\n\n" + "\n".join(lines) + "\n\nОберіть користувача:",
         reply_markup=get_user_list_keyboard(users),
     )
+    # Replace the reply keyboard so the user can always return to the main menu.
+    await msg.answer("↕️", reply_markup=get_admin_nav_keyboard())
     await state.set_state(AdminStates.user_list)
+
+
+# ── Universal navigation — back to main menu from any admin sub-state ─────
+
+@router.message(
+    StateFilter(
+        AdminStates.user_list,
+        AdminStates.user_detail,
+        AdminStates.set_role_select_role,
+        AdminStates.confirm_delete_user,
+        AdminStates.task_list,
+    ),
+    F.text == "🏠 Головне меню",
+)
+async def admin_nav_to_main_menu(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+) -> None:
+    """Return to admin main menu from any browsing sub-state."""
+    await _assert_admin(user_service, message.from_user.id)
+    await state.set_state(AdminStates.main_menu)
+    await message.answer("🏠 Головне меню", reply_markup=get_admin_main_menu())
 
 
 # ── User list ──────────────────────────────────────────────────────────────

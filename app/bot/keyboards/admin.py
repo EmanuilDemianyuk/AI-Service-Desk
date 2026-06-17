@@ -29,6 +29,18 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_admin_nav_keyboard() -> ReplyKeyboardMarkup:
+    """Navigation reply keyboard shown in admin sub-states (user list, detail, etc.).
+
+    Replaces the main menu keyboard so all reply buttons remain functional
+    while the user browses inline-keyboard-driven views.
+    """
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🏠 Головне меню")]],
+        resize_keyboard=True,
+    )
+
+
 def get_user_list_keyboard(users: list[User]) -> InlineKeyboardMarkup:
     """Inline list of users — each button opens the user detail view."""
     role_icon = {"APPLICANT": "👤", "EXECUTOR": "🔧", "ADMIN": "👑"}

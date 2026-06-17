@@ -6,6 +6,7 @@ from aiogram.types import BotCommand
 
 from app.config import settings
 from app.bot.handlers import routers
+from app.bot.middleware import CommandGuardMiddleware
 
 
 async def setup_default_commands(bot: Bot) -> None:
@@ -23,6 +24,9 @@ async def setup_bot() -> tuple[Bot, Dispatcher]:
     bot = Bot(token=settings.BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
+
+    # Register command guard before routers so it runs on every message first.
+    dp.message.middleware(CommandGuardMiddleware())
 
     # Register routers
     for router in routers:

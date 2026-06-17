@@ -42,3 +42,18 @@ class AdminStates(StatesGroup):
     create_user_role = State()
     # Task overview
     task_list = State()
+
+
+# States that belong to active multi-step flows (user is inputting data).
+# The CommandGuardMiddleware checks this set before allowing a command switch.
+# Add new flow states here when implementing new multi-step scenarios.
+FLOW_STATES: frozenset[str] = frozenset({
+    ApplicantStates.request_description.state,
+    ApplicantStates.status_input.state,
+    ExecutorStates.complete_task.state,
+    ExecutorStates.feedback_input.state,
+    AdminStates.create_user_first_name.state,
+    AdminStates.create_user_last_name.state,
+    AdminStates.create_user_telegram_id.state,
+    AdminStates.create_user_role.state,
+})
