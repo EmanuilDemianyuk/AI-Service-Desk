@@ -43,7 +43,7 @@ class AIService:
                         "X-Title": "HelpDesk Bot",
                     },
                     json={
-                        "model": "openai/gpt-3.5-turbo",
+                        "model": "deepseek/deepseek-r1:free",
                         "messages": [
                             {
                                 "role": "system",

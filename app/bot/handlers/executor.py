@@ -17,23 +17,23 @@ from app.services import UserService, TaskService
 router = Router()
 
 
-@router.message(ExecutorStates.main_menu, F.text == "🆕 New Tasks")
+@router.message(ExecutorStates.main_menu, F.text == "🆕 Нові завдання")
 async def new_tasks(
     message: Message,
     state: FSMContext,
     task_service: TaskService,
 ) -> None:
-    """Show new tasks."""
+    """Показати нові завдання."""
     tasks = await task_service.get_new_tasks()
 
     if not tasks:
         await message.answer(
-            "🎉 No new tasks at the moment!",
+            "🎉 Немає нових завдань наразі!",
             reply_markup=get_executor_main_menu(),
         )
         return
 
-    response = "🆕 New Tasks:\n\n"
+    response = "🆕 Нові завдання:\n\n"
     keyboard_buttons = []
 
     for task in tasks:
@@ -52,29 +52,29 @@ async def new_tasks(
     await state.set_state(ExecutorStates.new_tasks)
 
 
-@router.message(ExecutorStates.main_menu, F.text == "⏳ My Tasks")
+@router.message(ExecutorStates.main_menu, F.text == "⏳ Мої завдання")
 async def my_tasks(
     message: Message,
     state: FSMContext,
     user_service: UserService,
     task_service: TaskService,
 ) -> None:
-    """Show executor's tasks in progress."""
+    """Show the tasks currently being performed by the worker."""
     user = await user_service.get_user_by_telegram_id(message.from_user.id)
     if not user:
-        await message.answer("❌ User not found")
+        await message.answer("❌ Користувач не знайдений")
         return
 
     tasks = await task_service.get_executor_tasks(user.id)
 
     if not tasks:
         await message.answer(
-            "📭 You have no tasks in progress.",
+            "📭 У вас немає завдань у процесі виконання.",
             reply_markup=get_executor_main_menu(),
         )
         return
 
-    response = "⏳ Your Tasks in Progress:\n\n"
+    response = "⏳ Ваші завдання в процесі:\n\n"
     for task in tasks:
         response += f"#{task.id} - {task.title} ({task.status.value})\n"
 
@@ -85,11 +85,11 @@ async def my_tasks(
     await state.set_state(ExecutorStates.my_tasks)
 
 
-@router.message(ExecutorStates.main_menu, F.text == "✅ Complete Task")
+@router.message(ExecutorStates.main_menu, F.text == "✅ Виконати завдання")
 async def complete_task_start(message: Message, state: FSMContext) -> None:
     """Start task completion."""
     await state.set_state(ExecutorStates.complete_task)
-    await message.answer("✅ Enter task number to complete:")
+    await message.answer("✅ Введіть номер завдання, яке потрібно виконати:")
 
 
 @router.message(ExecutorStates.complete_task)
@@ -106,14 +106,14 @@ async def complete_task_feedback(
         await state.update_data(task_id=task_id)
         await state.set_state(ExecutorStates.feedback_input)
         await message.answer(
-            f"📝 Describe the work completed for task #{task_id}:",
+            f"📝 Опишіть виконану роботу для завдання #{task_id}:",
         )
 
     except ValueError:
-        await message.answer("❌ Invalid task number. Please enter a number.")
+        await message.answer("❌ Невірний номер завдання. Будь ласка, введіть число.")
     except Exception as e:
         await message.answer(
-            f"❌ Error: {str(e)}",
+            f"❌ Помилка: {str(e)}",
             reply_markup=get_executor_main_menu(),
         )
         await state.set_state(ExecutorStates.main_menu)
@@ -141,22 +141,22 @@ async def complete_task_submit(
             bot = Bot(token="")  # Will be set from context
             await bot.send_message(
                 applicant.telegram_id,
-                f"✅ Task #{task_id} has been completed!\n\n"
-                f"Feedback: {message.text}\n\n"
-                f"Please confirm the work is complete.",
+                f"✅ Завдання #{task_id} завершено!\n\n"
+                f"Відгуки: {message.text}\n\n"
+                f"Будь ласка, підтвердьте, що робота виконана.",
             )
         except Exception as e:
-            print(f"Applicant notification error: {e}")
+            print(f"Помилка при надсиланні повідомлення заявнику: {e}")
 
         await message.answer(
-            f"✅ Task #{task_id} marked as waiting for applicant confirmation!",
+            f"✅ Завдання #{task_id} позначено як очікує підтвердження від заявника!",
             reply_markup=get_executor_main_menu(),
         )
         await state.set_state(ExecutorStates.main_menu)
 
     except Exception as e:
         await message.answer(
-            f"❌ Error: {str(e)}",
+            f"❌ Помилка: {str(e)}",
             reply_markup=get_executor_main_menu(),
         )
         await state.set_state(ExecutorStates.main_menu)
@@ -175,17 +175,17 @@ async def take_task_callback(
         user = await user_service.get_user_by_telegram_id(callback_query.from_user.id)
 
         if not user:
-            await callback_query.answer("❌ User not found")
+            await callback_query.answer("❌ Користувач не знайдений")
             return
 
         task = await task_service.take_task(task_id, user.id)
 
         await callback_query.message.answer(
-            f"✅ Task #{task_id} taken into progress!",
+            f"✅ Завдання #{task_id} взято в обробку!",
             reply_markup=get_executor_main_menu(),
         )
         await state.set_state(ExecutorStates.main_menu)
         await callback_query.answer()
 
     except Exception as e:
-        await callback_query.answer(f"❌ Error: {str(e)}")
+        await callback_query.answer(f"❌ Помилка: {str(e)}")

@@ -7,9 +7,9 @@ def get_applicant_main_menu() -> ReplyKeyboardMarkup:
     """Get applicant main menu keyboard."""
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📝 Create Request")],
-            [KeyboardButton(text="📋 My Requests")],
-            [KeyboardButton(text="🔍 Request Status")],
+            [KeyboardButton(text="📝 Створити запит")],
+            [KeyboardButton(text="📋 Мої запити")],
+            [KeyboardButton(text="🔍 Статус запиту")],
         ],
         resize_keyboard=True,
     )
@@ -21,8 +21,8 @@ def get_confirmation_keyboard() -> InlineKeyboardMarkup:
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Yes", callback_data="confirm_yes"),
-                InlineKeyboardButton(text="❌ No", callback_data="confirm_no"),
+                InlineKeyboardButton(text="✅ Так", callback_data="confirm_yes"),
+                InlineKeyboardButton(text="❌ Ні", callback_data="confirm_no"),
             ],
         ]
     )
@@ -35,7 +35,7 @@ def get_task_actions_keyboard(task_id: int) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="View Details",
+                    text="Переглянути деталі",
                     callback_data=f"task_details_{task_id}",
                 ),
             ],

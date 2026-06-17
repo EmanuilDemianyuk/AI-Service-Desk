@@ -11,9 +11,9 @@ from app.bot.handlers import routers
 async def setup_default_commands(bot: Bot) -> None:
     """Setup default bot commands."""
     commands = [
-        BotCommand(command="start", description="Start the bot"),
-        BotCommand(command="help", description="Show help"),
-        BotCommand(command="cancel", description="Cancel current operation"),
+        BotCommand(command="start", description="Запустити бота"),
+        BotCommand(command="help", description="Показати довідку"),
+        BotCommand(command="cancel", description="Скасувати поточну операцію"),
     ]
     await bot.set_my_commands(commands)
 

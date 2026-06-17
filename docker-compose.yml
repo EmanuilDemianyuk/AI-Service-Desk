@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -20,9 +18,9 @@ services:
     networks:
       - helpdesk_network
 
-  app:
+  api:
     build: .
-    container_name: helpdesk_bot
+    container_name: helpdesk_api
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,6 +42,29 @@ services:
     networks:
       - helpdesk_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  bot:
+    build: .
+    container_name: helpdesk_bot_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-helpdesk}
+      POSTGRES_USER: ${POSTGRES_USER:-helpdesk_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      BOT_TOKEN: ${BOT_TOKEN}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      NOTION_TOKEN: ${NOTION_TOKEN}
+      NOTION_DATABASE_ID: ${NOTION_DATABASE_ID}
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - .:/app
+    networks:
+      - helpdesk_network
+    command: python -m app.bot_runner
 
 volumes:
   postgres_data:

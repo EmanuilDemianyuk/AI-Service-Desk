@@ -7,9 +7,9 @@ def get_executor_main_menu() -> ReplyKeyboardMarkup:
     """Get executor main menu keyboard."""
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🆕 New Tasks")],
-            [KeyboardButton(text="⏳ My Tasks")],
-            [KeyboardButton(text="✅ Complete Task")],
+            [KeyboardButton(text="🆕 Нові завдання")],
+            [KeyboardButton(text="⏳ Мої завдання")],
+            [KeyboardButton(text="✅ Позначити як завершене")],
         ],
         resize_keyboard=True,
     )
@@ -22,7 +22,7 @@ def get_task_action_keyboard(task_id: int) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Take into Progress",
+                    text="Почати виконання",
                     callback_data=f"take_task_{task_id}",
                 ),
             ],
@@ -37,7 +37,7 @@ def get_complete_task_keyboard(task_id: int) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Mark as Complete",
+                    text="Позначити як завершене",
                     callback_data=f"mark_complete_{task_id}",
                 ),
             ],

@@ -24,13 +24,13 @@ async def start(message: Message, state: FSMContext, user_service: UserService) 
     if user.role == UserRole.APPLICANT:
         await state.set_state(ApplicantStates.main_menu)
         await message.answer(
-            f"👋 Welcome, {user.full_name}!\n\nYou are registered as an Applicant.",
+            f"👋 Ласкаво просимо, {user.full_name}!\n\nВи зареєстровані як заявник.",
             reply_markup=get_applicant_main_menu(),
         )
     elif user.role == UserRole.EXECUTOR:
         await state.set_state(ExecutorStates.main_menu)
         await message.answer(
-            f"👋 Welcome, {user.full_name}!\n\nYou are registered as an Executor.",
+            f"👋 Ласкаво просимо, {user.full_name}!\n\nВи зареєстровані як виконавець.",
             reply_markup=get_executor_main_menu(),
         )
 
@@ -39,14 +39,14 @@ async def start(message: Message, state: FSMContext, user_service: UserService) 
 async def help_command(message: Message) -> None:
     """Handle /help command."""
     help_text = """
-    🤖 HelpDesk Bot Commands:
+    🤖 Команди бота HelpDesk:
     
-    /start - Start the bot
-    /help - Show this help message
-    /my_tasks - Show your tasks
-    /new_tasks - Show new tasks (Executors only)
+    /start — запустити бота
+    /help — показати це повідомлення довідки
+    /my_tasks — показати ваші завдання
+    /new_tasks — показати нові завдання (лише для виконавців)
     
-    Use the menu buttons to navigate.
+    Для навігації використовуйте кнопки меню.
     """
     await message.answer(help_text)
 

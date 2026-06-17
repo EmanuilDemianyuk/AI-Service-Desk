@@ -16,12 +16,12 @@ from app.services import UserService, TaskService, AIService, NotionService
 router = Router()
 
 
-@router.message(ApplicantStates.main_menu, F.text == "📝 Create Request")
+@router.message(ApplicantStates.main_menu, F.text == "📝 Створити запит")
 async def create_request_start(message: Message, state: FSMContext) -> None:
     """Start creating a request."""
     await state.set_state(ApplicantStates.request_description)
     await message.answer(
-        "📝 Describe your issue:\n\nPlease provide a detailed description of the problem.",
+        "📝 Опишіть вашу проблему:\n\nБудь ласка, надайте детальний опис проблеми.",
     )
 
 
@@ -37,12 +37,12 @@ async def create_request_description(
     """Process request description."""
     user = await user_service.get_user_by_telegram_id(message.from_user.id)
     if not user:
-        await message.answer("❌ User not found")
+        await message.answer("❌ Користувач не знайдений")
         return
 
     # Classify ticket using AI
     try:
-        await message.answer("⏳ Classifying your request... Please wait.")
+        await message.answer("⏳ Класифікація вашого запиту... Будь ласка, зачекайте.")
         classification = await ai_service.classify_ticket(message.text)
 
         # Get executor
@@ -64,21 +64,21 @@ async def create_request_description(
             if notion_page_id:
                 await task_service.update_notion_page_id(task.id, notion_page_id)
         except Exception as e:
-            print(f"Notion integration error: {e}")
+            print(f"Помилка інтеграції з Notion: {e}")
 
         # Send confirmation to applicant
         response_text = f"""
-✅ Request #{task.id} has been created!
+✅ Запит #{task.id} створено!
 
-📋 Details:
-• Type: {classification.type.value}
-• Priority: {classification.priority.value}
-• Executor: {executor.full_name}
-• Title: {classification.title}
-• Description: {classification.description}
+📋 Деталі:
+• Тип: {classification.type.value}
+• Пріоритет: {classification.priority.value}
+• Виконавець: {executor.full_name}
+• Назва: {classification.title}
+• Опис: {classification.description}
 
-Status: NEW
-An executor will contact you shortly.
+Статус: NEW
+Виконавець зв'яжеться з вами найближчим часом.
         """
         await message.answer(response_text, reply_markup=get_applicant_main_menu())
 
@@ -89,22 +89,22 @@ An executor will contact you shortly.
             bot = Bot(token="")  # Will be set from context
             await bot.send_message(
                 executor.telegram_id,
-                f"🔔 New task assigned to you:\n\n#{task.id} - {classification.title}\n\nApplicant: {user.full_name}",
+                f"🔔 Нове завдання призначено вам:\n\n#{task.id} - {classification.title}\n\nЗаявник: {user.full_name}",
             )
         except Exception as e:
-            print(f"Executor notification error: {e}")
+            print(f"Помилка сповіщення виконавця: {e}")
 
         await state.set_state(ApplicantStates.main_menu)
 
     except Exception as e:
         await message.answer(
-            f"❌ Error processing request: {str(e)}\n\nPlease try again.",
+            f"❌ Помилка обробки запиту: {str(e)}\n\nБудь ласка, спробуйте ще раз.",
             reply_markup=get_applicant_main_menu(),
         )
         await state.set_state(ApplicantStates.main_menu)
 
 
-@router.message(ApplicantStates.main_menu, F.text == "📋 My Requests")
+@router.message(ApplicantStates.main_menu, F.text == "📋 Мої запити")
 async def my_requests(
     message: Message,
     state: FSMContext,
@@ -114,28 +114,27 @@ async def my_requests(
     """Show user's requests."""
     user = await user_service.get_user_by_telegram_id(message.from_user.id)
     if not user:
-        await message.answer("❌ User not found")
+        await message.answer("❌ Користувач не знайдений")
         return
 
     tasks = await task_service.get_user_tasks(user.id)
 
     if not tasks:
-        await message.answer("📭 You have no requests yet.")
+        await message.answer("📭 У вас немає запитів.")
         return
 
-    response = "📋 Your Requests:\n\n"
+    response = "📋 Ваші запити:\n\n"
     for task in tasks:
         response += f"#{task.id} | {task.title} | {task.status.value}\n"
 
     await message.answer(response, reply_markup=get_applicant_main_menu())
 
 
-@router.message(ApplicantStates.main_menu, F.text == "🔍 Request Status")
+@router.message(ApplicantStates.main_menu, F.text == "🔍 Статус запиту")
 async def request_status_start(message: Message, state: FSMContext) -> None:
     """Start request status check."""
     await state.set_state(ApplicantStates.status_input)
-    await message.answer("🔍 Enter request number:")
-
+    await message.answer("🔍 Введіть номер запиту:")
 
 @router.message(ApplicantStates.status_input)
 async def request_status_show(
@@ -149,26 +148,26 @@ async def request_status_show(
         task = await task_service.get_task(task_id)
 
         response = f"""
-📋 Request #{task.id}
+📋 Запит #{task.id}
 
-Title: {task.title}
+Назва: {task.title}
 
-Status: {task.status.value}
+Статус: {task.status.value}
 
-Executor: {task.executor.full_name if task.executor else "Not assigned"}
-Type: {task.type.value}
-Priority: {task.priority.value}
+Виконавець: {task.executor.full_name if task.executor else "Не призначено"}
+Тип: {task.type.value}
+Пріоритет: {task.priority.value}
 
-Created: {task.created_at.strftime('%Y-%m-%d %H:%M')}
+Створено: {task.created_at.strftime('%Y-%m-%d %H:%M')}
         """
 
         await message.answer(response, reply_markup=get_applicant_main_menu())
         await state.set_state(ApplicantStates.main_menu)
 
     except ValueError:
-        await message.answer("❌ Invalid request number. Please enter a number.")
+        await message.answer("❌ Недійсний номер запиту. Будь ласка, введіть номер.")
     except Exception as e:
-        await message.answer(f"❌ Error: {str(e)}", reply_markup=get_applicant_main_menu())
+        await message.answer(f"❌ Помилка: {str(e)}", reply_markup=get_applicant_main_menu())
         await state.set_state(ApplicantStates.main_menu)
 
 
@@ -189,13 +188,13 @@ async def confirm_task_completion(
     if action == "yes":
         task = await task_service.confirm_task(task_id)
         await callback_query.message.answer(
-            f"✅ Task #{task_id} confirmed as completed!",
+            f"✅ Завдання #{task_id} підтверджено як завершене!",
             reply_markup=get_applicant_main_menu(),
         )
     else:
         task = await task_service.reject_task(task_id)
         await callback_query.message.answer(
-            f"❌ Task #{task_id} rejected. The executor will resume work.",
+            f"❌ Завдання #{task_id} відхилено. Виконавець продовжить роботу.",
             reply_markup=get_applicant_main_menu(),
         )
 
