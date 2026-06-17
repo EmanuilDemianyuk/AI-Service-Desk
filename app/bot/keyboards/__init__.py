@@ -12,8 +12,12 @@ from app.bot.keyboards.executor import (
 )
 from app.bot.keyboards.admin import (
     get_admin_main_menu,
+    get_cancel_keyboard,
     get_user_list_keyboard,
+    get_user_actions_keyboard,
     get_role_keyboard,
+    get_delete_confirmation_keyboard,
+    get_create_role_keyboard,
 )
 
 __all__ = [
@@ -25,6 +29,10 @@ __all__ = [
     "get_complete_task_keyboard",
     "get_task_list_keyboard",
     "get_admin_main_menu",
+    "get_cancel_keyboard",
     "get_user_list_keyboard",
+    "get_user_actions_keyboard",
     "get_role_keyboard",
+    "get_delete_confirmation_keyboard",
+    "get_create_role_keyboard",
 ]

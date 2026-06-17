@@ -97,6 +97,12 @@ class UserService:
         await self.repository.commit()
         return user
 
+    async def delete_user(self, user_id: int) -> None:
+        """Delete user. Cascades to their created tasks; clears executor_id on assigned tasks."""
+        user = await self.get_user(user_id)
+        await self.repository.delete(user)
+        await self.repository.commit()
+
     async def deactivate_user(self, user_id: int) -> User:
         """Deactivate user."""
         return await self.update_user(user_id, is_active=False)

@@ -30,6 +30,15 @@ class AdminStates(StatesGroup):
     """States for admin users."""
 
     main_menu = State()
+    # User list & per-user actions
     user_list = State()
+    user_detail = State()
     set_role_select_role = State()
+    confirm_delete_user = State()
+    # Create user multi-step form
+    create_user_first_name = State()
+    create_user_last_name = State()
+    create_user_telegram_id = State()
+    create_user_role = State()
+    # Task overview
     task_list = State()
