@@ -2,6 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database.models import User, UserRole
 from app.database.repositories import UserRepository
 from app.exceptions import NotFoundError, ValidationError
@@ -52,21 +53,33 @@ class UserService:
         full_name: str,
         username: str | None = None,
     ) -> User:
-        """Get user or create if not exists."""
+        """Get user or create if not exists. Superadmin gets ADMIN role automatically."""
         user = await self.repository.get_by_telegram_id(telegram_id)
         if user:
             return user
 
+        role = UserRole.ADMIN if telegram_id == settings.superadmin_id else UserRole.APPLICANT
         return await self.create_user(
             telegram_id=telegram_id,
             full_name=full_name,
             username=username,
-            role=UserRole.APPLICANT,
+            role=role,
         )
+
+    async def get_all_users(self) -> list[User]:
+        """Get all users."""
+        return await self.repository.get_all()
 
     async def get_all_executors(self) -> list[User]:
         """Get all executor users."""
         return await self.repository.get_all_executors()
+
+    async def set_role(self, user_id: int, role: UserRole) -> User:
+        """Change a user's role."""
+        user = await self.get_user(user_id)
+        user = await self.repository.update(user, role=role)
+        await self.repository.commit()
+        return user
 
     async def get_executor_for_type(self, task_type: str) -> User:
         """Get executor for task type."""

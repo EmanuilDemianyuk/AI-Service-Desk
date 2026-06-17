@@ -30,3 +30,6 @@ class AdminStates(StatesGroup):
     """States for admin users."""
 
     main_menu = State()
+    user_list = State()
+    set_role_select_role = State()
+    task_list = State()

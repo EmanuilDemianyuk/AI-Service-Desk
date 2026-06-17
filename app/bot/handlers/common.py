@@ -4,8 +4,8 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from app.bot.states import ApplicantStates, ExecutorStates
-from app.bot.keyboards import get_applicant_main_menu, get_executor_main_menu
+from app.bot.states import ApplicantStates, ExecutorStates, AdminStates
+from app.bot.keyboards import get_applicant_main_menu, get_executor_main_menu, get_admin_main_menu
 from app.database.models import UserRole
 from app.services import UserService
 
@@ -32,6 +32,12 @@ async def start(message: Message, state: FSMContext, user_service: UserService) 
         await message.answer(
             f"👋 Ласкаво просимо, {user.full_name}!\n\nВи зареєстровані як виконавець.",
             reply_markup=get_executor_main_menu(),
+        )
+    elif user.role == UserRole.ADMIN:
+        await state.set_state(AdminStates.main_menu)
+        await message.answer(
+            f"👋 Ласкаво просимо, {user.full_name}!\n\n👑 Ви адміністратор.",
+            reply_markup=get_admin_main_menu(),
         )
 
 

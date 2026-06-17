@@ -14,3 +14,4 @@ structlog==24.1.0
 python-json-logger==2.0.7
 tenacity==8.2.3
 asyncpg>=0.29.0
+psycopg2-binary>=2.9

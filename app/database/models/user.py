@@ -13,7 +13,7 @@ class UserRole(str, enum.Enum):
 
     APPLICANT = "APPLICANT"
     EXECUTOR = "EXECUTOR"
-
+    ADMIN = "ADMIN"
 
 class User(Base):
     """User model."""

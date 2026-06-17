@@ -58,6 +58,10 @@ class TaskService:
         """Get all tasks for a user (as applicant)."""
         return await self.task_repository.get_by_applicant(user_id)
 
+    async def get_all_tasks(self) -> list[Task]:
+        """Get all tasks (admin use)."""
+        return await self.task_repository.get_all()
+
     async def get_new_tasks(self) -> list[Task]:
         """Get all NEW tasks."""
         return await self.task_repository.get_new_tasks()

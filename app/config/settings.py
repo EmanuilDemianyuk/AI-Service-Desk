@@ -11,6 +11,9 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     BOT_TOKEN: str
+
+    # Superadmin
+    SUPERADMIN_TELEGRAM_ID: str
     
     # Database
     POSTGRES_HOST: str = "localhost"
@@ -33,6 +36,14 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    @property
+    def superadmin_id(self) -> int | None:
+        """Parse SUPERADMIN_TELEGRAM_ID as int. Returns None if not a numeric ID."""
+        try:
+            return int(self.SUPERADMIN_TELEGRAM_ID)
+        except (ValueError, TypeError):
+            return None
 
     @cached_property
     def DATABASE_URL(self) -> str:

@@ -51,6 +51,11 @@ class UserRepository(BaseRepository):
         )
         return result.scalars().all()
 
+    async def get_by_role(self, role: "UserRole") -> list[User]:
+        """Get all users with a specific role."""
+        result = await self.session.execute(select(User).where(User.role == role))
+        return result.scalars().all()
+
     async def update(self, user: User, **kwargs) -> User:
         """Update user."""
         for key, value in kwargs.items():
