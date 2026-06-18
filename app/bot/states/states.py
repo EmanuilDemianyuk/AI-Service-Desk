@@ -14,6 +14,7 @@ class ApplicantStates(StatesGroup):
     status_input = State()
     confirm_requests = State()
     confirm_request_detail = State()
+    my_request_detail = State()
 
 
 class ExecutorStates(StatesGroup):

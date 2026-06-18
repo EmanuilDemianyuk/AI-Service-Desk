@@ -32,6 +32,26 @@ def get_applicant_detail_nav_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_my_requests_keyboard(tasks: list) -> InlineKeyboardMarkup:
+    """InlineKeyboard listing all user requests with status emoji and title."""
+    STATUS_EMOJI = {
+        "NEW": "🔵",
+        "IN_PROGRESS": "🟡",
+        "WAITING_APPLICANT": "🟠",
+        "WAITING_EXECUTOR": "🟣",
+        "DONE": "🟢",
+        "CANCELLED": "🔴",
+    }
+    buttons = [
+        [InlineKeyboardButton(
+            text=f"{STATUS_EMOJI.get(task.status.value, '⚪')} {task.title}",
+            callback_data=f"view_request_{task.id}",
+        )]
+        for task in tasks
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
 def get_waiting_tasks_keyboard(tasks: list) -> InlineKeyboardMarkup:
     """InlineKeyboard listing WAITING_APPLICANT tasks."""
     buttons = [

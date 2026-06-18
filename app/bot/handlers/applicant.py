@@ -10,6 +10,7 @@ from app.bot.keyboards import (
     get_applicant_main_menu,
     get_applicant_nav_keyboard,
     get_applicant_detail_nav_keyboard,
+    get_my_requests_keyboard,
     get_waiting_tasks_keyboard,
     get_task_confirm_keyboard,
     get_confirmation_keyboard,
@@ -117,6 +118,40 @@ async def create_request_description(
         await state.set_state(ApplicantStates.main_menu)
 
 
+async def _show_my_requests_list(
+    target: Message,
+    telegram_id: int,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Shared logic: fetch all user requests and render the my-requests list screen."""
+    user = await user_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await target.answer("❌ Користувач не знайдений")
+        return
+
+    tasks = await task_service.get_user_tasks(user.id)
+
+    if not tasks:
+        await target.answer(
+            "📭 У вас поки немає створених запитів.",
+            reply_markup=get_applicant_nav_keyboard(),
+        )
+        await state.set_state(ApplicantStates.my_requests)
+        return
+
+    await target.answer(
+        "📋 Мої запити",
+        reply_markup=get_applicant_nav_keyboard(),
+    )
+    await target.answer(
+        "Оберіть запит для перегляду:",
+        reply_markup=get_my_requests_keyboard(tasks),
+    )
+    await state.set_state(ApplicantStates.my_requests)
+
+
 @router.message(ApplicantStates.main_menu, F.text == "📋 Мої запити")
 async def my_requests(
     message: Message,
@@ -125,22 +160,77 @@ async def my_requests(
     task_service: TaskService,
 ) -> None:
     """Show user's requests."""
-    user = await user_service.get_user_by_telegram_id(message.from_user.id)
-    if not user:
-        await message.answer("❌ Користувач не знайдений")
-        return
+    await _show_my_requests_list(message, message.from_user.id, state, user_service, task_service)
 
-    tasks = await task_service.get_user_tasks(user.id)
 
-    if not tasks:
-        await message.answer("📭 У вас немає запитів.")
-        return
+@router.message(ApplicantStates.my_requests, F.text == "🏠 Головне меню")
+async def my_requests_go_main_menu(message: Message, state: FSMContext) -> None:
+    """Return to applicant main menu from my-requests list screen."""
+    await message.answer("🏠 Головне меню", reply_markup=get_applicant_main_menu())
+    await state.set_state(ApplicantStates.main_menu)
 
-    response = "📋 Ваші запити:\n\n"
-    for task in tasks:
-        response += f"#{task.id} | {task.title} | {task.status.value}\n"
 
-    await message.answer(response, reply_markup=get_applicant_main_menu())
+@router.callback_query(F.data.startswith("view_request_"))
+async def view_request_callback(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+    task_service: TaskService,
+) -> None:
+    """Show full details of a user request."""
+    await callback_query.answer()
+    try:
+        task_id = int(callback_query.data[len("view_request_"):])
+        task = await task_service.get_task_with_relations(task_id)
+
+        executor_name = task.executor.full_name if task.executor else "—"
+        applicant_name = task.applicant.full_name if task.applicant else "—"
+        created = task.created_at.strftime("%Y-%m-%d %H:%M")
+        closed = task.closed_at.strftime("%Y-%m-%d %H:%M") if task.closed_at else "—"
+
+        STATUS_EMOJI = {
+            "NEW": "🔵", "IN_PROGRESS": "🟡", "WAITING_APPLICANT": "🟠",
+            "WAITING_EXECUTOR": "🟣", "DONE": "🟢", "CANCELLED": "🔴",
+        }
+        emoji = STATUS_EMOJI.get(task.status.value, "⚪")
+
+        detail = (
+            f"📋 Запит #{task.id}\n\n"
+            f"📌 {task.title}\n"
+            f"📝 {task.description or '—'}\n\n"
+            f"Статус: {emoji} {task.status.value}\n"
+            f"⚡ Пріоритет: {task.priority.value}\n"
+            f"🔧 Тип: {task.type.value}\n\n"
+            f"👤 Заявник: {applicant_name}\n"
+            f"🛠 Виконавець: {executor_name}\n\n"
+            f"📅 Створено: {created}\n"
+            f"📅 Закрито: {closed}\n"
+        )
+        if task.feedback:
+            detail += f"\n💬 Коментар виконавця: {task.feedback}\n"
+
+        await callback_query.message.answer(
+            detail,
+            reply_markup=get_applicant_detail_nav_keyboard(),
+        )
+        await state.set_state(ApplicantStates.my_request_detail)
+
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
+            reply_markup=get_applicant_main_menu(),
+        )
+        await state.set_state(ApplicantStates.main_menu)
+
+
+@router.message(ApplicantStates.my_request_detail, F.text == "⬅️ Назад")
+async def my_request_detail_go_back(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Return to requests list from request detail screen."""
+    await _show_my_requests_list(message, message.from_user.id, state, user_service, task_service)
 
 
 async def _show_confirm_requests_list(
