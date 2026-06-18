@@ -16,7 +16,7 @@ from app.bot.keyboards import (
     get_confirmation_keyboard,
     get_task_actions_keyboard,
 )
-from app.services import UserService, TaskService, AIService, NotionService
+from app.services import UserService, TaskService, AIService
 
 router = Router()
 
@@ -46,23 +46,20 @@ async def create_request_description(
     user_service: UserService,
     task_service: TaskService,
     ai_service: AIService,
-    notion_service: NotionService,
 ) -> None:
-    """Process request description."""
+    """Process request description. Notion sync is handled by TaskService after DB commit."""
     user = await user_service.get_user_by_telegram_id(message.from_user.id)
     if not user:
         await message.answer("❌ Користувач не знайдений")
         return
 
-    # Classify ticket using AI
     try:
         await message.answer("⏳ Класифікація вашого запиту... Будь ласка, зачекайте.")
         classification = await ai_service.classify_ticket(message.text)
 
-        # Get executor
         executor = await user_service.get_executor_for_type(classification.type.value)
 
-        # Create task in database
+        # DB commit + Notion sync handled inside task_service.create_task
         task = await task_service.create_task(
             applicant_id=user.id,
             title=classification.title,
@@ -72,42 +69,18 @@ async def create_request_description(
             executor_id=executor.id,
         )
 
-        # Create task in Notion
-        try:
-            notion_page_id = await notion_service.create_task_page(task)
-            if notion_page_id:
-                await task_service.update_notion_page_id(task.id, notion_page_id)
-        except Exception as e:
-            print(f"Помилка інтеграції з Notion: {e}")
-
-        # Send confirmation to applicant
-        response_text = f"""
-✅ Запит #{task.id} створено!
-
-📋 Деталі:
-• Тип: {classification.type.value}
-• Пріоритет: {classification.priority.value}
-• Виконавець: {executor.full_name}
-• Назва: {classification.title}
-• Опис: {classification.description}
-
-Статус: NEW
-Виконавець зв'яжеться з вами найближчим часом.
-        """
+        response_text = (
+            f"✅ Запит #{task.id} створено!\n\n"
+            f"📋 Деталі:\n"
+            f"• Тип: {classification.type.value}\n"
+            f"• Пріоритет: {classification.priority.value}\n"
+            f"• Виконавець: {executor.full_name}\n"
+            f"• Назва: {classification.title}\n"
+            f"• Опис: {classification.description}\n\n"
+            f"Статус: NEW\n"
+            f"Виконавець зв'яжеться з вами найближчим часом."
+        )
         await message.answer(response_text, reply_markup=get_applicant_main_menu())
-
-        # Notify executor
-        try:
-            from aiogram import Bot
-
-            bot = Bot(token="")  # Will be set from context
-            await bot.send_message(
-                executor.telegram_id,
-                f"🔔 Нове завдання призначено вам:\n\n#{task.id} - {classification.title}\n\nЗаявник: {user.full_name}",
-            )
-        except Exception as e:
-            print(f"Помилка сповіщення виконавця: {e}")
-
         await state.set_state(ApplicantStates.main_menu)
 
     except Exception as e:

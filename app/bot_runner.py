@@ -15,6 +15,7 @@ from app.services import (
     TaskService,
     AIService,
     NotionService,
+    NotionSyncService,
 )
 from app.core import setup_logging, get_logger
 
@@ -35,7 +36,8 @@ async def main() -> None:
         user_repository = UserRepository(session)
         task_repository = TaskRepository(session)
         user_service = UserService(user_repository)
-        task_service = TaskService(task_repository, user_repository)
+        notion_sync = NotionSyncService()
+        task_service = TaskService(task_repository, user_repository, notion_sync=notion_sync)
         ai_service = AIService()
         notion_service = NotionService()
 

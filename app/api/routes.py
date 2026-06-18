@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.base import get_db_session
 from app.database.repositories import UserRepository, TaskRepository
-from app.services import UserService, TaskService
+from app.services import UserService, TaskService, NotionSyncService
 from app.schemas import (
     HealthResponse,
     UserCreate,
@@ -84,6 +84,18 @@ async def update_user(
         status_code = status.HTTP_404_NOT_FOUND if isinstance(exc, NotFoundError) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
     return user
+
+
+@router.post("/notion/sync", status_code=status.HTTP_200_OK)
+async def sync_notion(
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Bulk-sync all DB tasks to Notion. DB is the authoritative source of truth."""
+    task_repository = TaskRepository(session)
+    user_repository = UserRepository(session)
+    notion_sync = NotionSyncService()
+    task_service = TaskService(task_repository, user_repository, notion_sync=notion_sync)
+    return await task_service.sync_all_to_notion()
 
 
 @router.get("/tasks", response_model=TaskListResponse)

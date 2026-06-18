@@ -47,6 +47,13 @@ class TaskRepository(BaseRepository):
         result = await self.session.execute(select(Task))
         return result.scalars().all()
 
+    async def get_all_with_relations(self) -> list[Task]:
+        """Get all tasks with applicant and executor eagerly loaded."""
+        result = await self.session.execute(
+            select(Task).options(selectinload(Task.applicant), selectinload(Task.executor))
+        )
+        return result.scalars().all()
+
     async def get_by_applicant(self, applicant_id: int) -> list[Task]:
         """Get all tasks for an applicant."""
         result = await self.session.execute(
