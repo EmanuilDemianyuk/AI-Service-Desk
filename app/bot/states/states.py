@@ -22,6 +22,7 @@ class ExecutorStates(StatesGroup):
 
     main_menu = State()
     new_tasks = State()
+    new_task_detail = State()
     my_tasks = State()
     task_in_progress = State()
     complete_task = State()

@@ -15,6 +15,8 @@ from app.bot.keyboards import (
     get_task_detail_nav_keyboard,
     get_complete_tasks_keyboard,
     get_confirm_complete_keyboard,
+    get_new_tasks_nav_keyboard,
+    get_accept_task_keyboard,
     STATUS_EMOJI,
 )
 from app.database.models import TaskStatus
@@ -93,6 +95,31 @@ async def _show_complete_task_list(
     await state.set_state(ExecutorStates.complete_task)
 
 
+async def _show_new_tasks(
+    target: Message,
+    state: FSMContext,
+    task_service: TaskService,
+) -> None:
+    """Fetch NEW tasks and render the new-tasks list screen."""
+    tasks = await task_service.get_new_tasks()
+    if not tasks:
+        await target.answer(
+            "📭 Нових завдань немає.",
+            reply_markup=get_new_tasks_nav_keyboard(),
+        )
+        await state.set_state(ExecutorStates.new_tasks)
+        return
+    await target.answer(
+        "🆕 Нові завдання",
+        reply_markup=get_new_tasks_nav_keyboard(),
+    )
+    await target.answer(
+        "Оберіть завдання для перегляду:",
+        reply_markup=get_task_list_keyboard(tasks),
+    )
+    await state.set_state(ExecutorStates.new_tasks)
+
+
 @router.message(ExecutorStates.main_menu, F.text == "🆕 Нові завдання")
 async def new_tasks(
     message: Message,
@@ -100,24 +127,111 @@ async def new_tasks(
     task_service: TaskService,
 ) -> None:
     """Показати нові завдання."""
-    tasks = await task_service.get_new_tasks()
+    await _show_new_tasks(message, state, task_service)
 
-    if not tasks:
-        await message.answer(
-            "🎉 Немає нових завдань наразі!",
+
+@router.message(ExecutorStates.new_tasks, F.text == "🏠 Головне меню")
+async def new_tasks_go_main_menu(message: Message, state: FSMContext) -> None:
+    """Return to executor main menu from new-tasks list screen."""
+    await message.answer("🏠 Головне меню", reply_markup=get_executor_main_menu())
+    await state.set_state(ExecutorStates.main_menu)
+
+
+@router.callback_query(ExecutorStates.new_tasks, F.data.startswith("view_new_task_"))
+async def view_new_task_callback(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+    task_service: TaskService,
+) -> None:
+    """Show full task card. Does NOT assign the executor — that requires ✅ Прийняти."""
+    await callback_query.answer()
+    try:
+        task_id = int(callback_query.data[len("view_new_task_"):])
+        task = await task_service.get_task_with_relations(task_id)
+
+        applicant_name = task.applicant.full_name if task.applicant else "—"
+        created = task.created_at.strftime("%Y-%m-%d %H:%M")
+        emoji = STATUS_EMOJI.get(task.status, "⚪")
+
+        detail = (
+            f"📋 Завдання #{task.id}\n\n"
+            f"📌 {task.title}\n"
+            f"📝 {task.description or '—'}\n\n"
+            f"🚦 Статус: {emoji} {task.status.value}\n"
+            f"⚡ Пріоритет: {task.priority.value}\n"
+            f"🔧 Тип: {task.type.value}\n\n"
+            f"👤 Заявник: {applicant_name}\n"
+            f"📅 Створено: {created}\n"
+        )
+
+        await callback_query.message.answer(
+            detail,
+            reply_markup=get_task_detail_nav_keyboard(),
+        )
+        await callback_query.message.answer(
+            "Прийняти завдання до виконання?",
+            reply_markup=get_accept_task_keyboard(task_id),
+        )
+        await state.set_state(ExecutorStates.new_task_detail)
+
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
             reply_markup=get_executor_main_menu(),
         )
-        return
+        await state.set_state(ExecutorStates.main_menu)
 
-    response = "🆕 Нові завдання:\n\nОберіть завдання, щоб взяти в обробку:\n\n"
-    for task in tasks:
-        response += f"#{task.id} - {task.title}\n"
 
-    await message.answer(
-        response,
-        reply_markup=get_task_list_keyboard(tasks),
-    )
-    await state.set_state(ExecutorStates.new_tasks)
+@router.message(ExecutorStates.new_task_detail, F.text == "⬅️ Назад")
+async def new_task_detail_go_back(
+    message: Message,
+    state: FSMContext,
+    task_service: TaskService,
+) -> None:
+    """Return to new-tasks list from task-detail screen."""
+    await _show_new_tasks(message, state, task_service)
+
+
+@router.callback_query(ExecutorStates.new_task_detail, F.data.startswith("accept_task_"))
+async def accept_task_callback(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Assign executor and take task into progress."""
+    await callback_query.answer()
+    try:
+        task_id = int(callback_query.data[len("accept_task_"):])
+        user = await user_service.get_user_by_telegram_id(callback_query.from_user.id)
+        if not user:
+            await callback_query.message.answer("❌ Користувач не знайдений")
+            return
+
+        await task_service.take_task(task_id, user.id)
+
+        try:
+            await callback_query.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        await callback_query.message.answer(
+            f"✅ Завдання #{task_id} прийнято до виконання!",
+        )
+        await _show_task_list(
+            callback_query.message,
+            callback_query.from_user.id,
+            state,
+            user_service,
+            task_service,
+        )
+
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
+            reply_markup=get_executor_main_menu(),
+        )
+        await state.set_state(ExecutorStates.main_menu)
 
 
 @router.message(ExecutorStates.main_menu, F.text == "⏳ Мої завдання")

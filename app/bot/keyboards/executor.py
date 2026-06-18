@@ -57,18 +57,35 @@ def get_complete_task_keyboard(task_id: int) -> InlineKeyboardMarkup:
 
 
 def get_task_list_keyboard(tasks: list) -> InlineKeyboardMarkup:
-    """Get task list keyboard."""
+    """InlineKeyboard listing NEW tasks for preview (no auto-assignment)."""
     buttons = []
     for task in tasks:
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text=f"#{task.id} - {task.title}",
-                    callback_data=f"take_task_{task.id}",
-                ),
-            ]
-        )
+        emoji = STATUS_EMOJI.get(task.status, "⚪")
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{emoji} #{task.id} — {task.title}",
+                callback_data=f"view_new_task_{task.id}",
+            )
+        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_new_tasks_nav_keyboard() -> ReplyKeyboardMarkup:
+    """Bottom navigation for the new-tasks screen: single 🏠 Головне меню button."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🏠 Головне меню")]],
+        resize_keyboard=True,
+    )
+
+
+def get_accept_task_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    """InlineKeyboard on new-task detail card with accept button."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="✅ Прийняти",
+            callback_data=f"accept_task_{task_id}",
+        )
+    ]])
 
 
 def get_my_tasks_keyboard(tasks: list) -> InlineKeyboardMarkup:
