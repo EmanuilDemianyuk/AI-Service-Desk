@@ -13,6 +13,8 @@ from app.bot.keyboards import (
     get_my_tasks_keyboard,
     get_my_tasks_nav_keyboard,
     get_task_detail_nav_keyboard,
+    get_complete_tasks_keyboard,
+    get_confirm_complete_keyboard,
     STATUS_EMOJI,
 )
 from app.database.models import TaskStatus
@@ -54,6 +56,41 @@ async def _show_task_list(
         reply_markup=get_my_tasks_keyboard(tasks),
     )
     await state.set_state(ExecutorStates.my_tasks)
+
+
+async def _show_complete_task_list(
+    target: Message,
+    telegram_id: int,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Shared logic: fetch IN_PROGRESS tasks and render the complete-task-list screen."""
+    user = await user_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await target.answer("❌ Користувач не знайдений")
+        return
+
+    all_tasks = await task_service.get_executor_tasks(user.id)
+    tasks = [t for t in all_tasks if t.status == TaskStatus.IN_PROGRESS]
+
+    if not tasks:
+        await target.answer(
+            "📭 У вас немає активних завдань для завершення.",
+            reply_markup=get_my_tasks_nav_keyboard(),
+        )
+        await state.set_state(ExecutorStates.complete_task)
+        return
+
+    await target.answer(
+        "✅ Позначити як завершене",
+        reply_markup=get_my_tasks_nav_keyboard(),
+    )
+    await target.answer(
+        "Оберіть завдання для завершення:",
+        reply_markup=get_complete_tasks_keyboard(tasks),
+    )
+    await state.set_state(ExecutorStates.complete_task)
 
 
 @router.message(ExecutorStates.main_menu, F.text == "🆕 Нові завдання")
@@ -153,38 +190,100 @@ async def task_detail_go_back(
     await _show_task_list(message, message.from_user.id, state, user_service, task_service)
 
 
-@router.message(ExecutorStates.main_menu, F.text == "✅ Виконати завдання")
-async def complete_task_start(message: Message, state: FSMContext) -> None:
-    """Start task completion."""
-    await state.set_state(ExecutorStates.complete_task)
-    await message.answer("✅ Введіть номер завдання, яке потрібно виконати:")
-
-
-@router.message(ExecutorStates.complete_task)
-async def complete_task_feedback(
+@router.message(ExecutorStates.main_menu, F.text == "✅ Позначити як завершене")
+async def complete_task_section(
     message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Enter the complete-task section: show IN_PROGRESS task list."""
+    await _show_complete_task_list(message, message.from_user.id, state, user_service, task_service)
+
+
+@router.message(ExecutorStates.complete_task, F.text == "🏠 Головне меню")
+async def complete_task_go_main_menu(message: Message, state: FSMContext) -> None:
+    """Return to executor main menu from the complete-task list screen."""
+    await message.answer("🏠 Головне меню", reply_markup=get_executor_main_menu())
+    await state.set_state(ExecutorStates.main_menu)
+
+
+@router.callback_query(F.data.startswith("complete_task_"))
+async def complete_task_callback(
+    callback_query: CallbackQuery,
     state: FSMContext,
     task_service: TaskService,
 ) -> None:
-    """Request feedback for task completion."""
+    """Show full task detail + confirm button for a selected IN_PROGRESS task."""
+    await callback_query.answer()
     try:
-        task_id = int(message.text)
+        task_id = int(callback_query.data[len("complete_task_"):])
         task = await task_service.get_task(task_id)
 
-        await state.update_data(task_id=task_id)
-        await state.set_state(ExecutorStates.feedback_input)
-        await message.answer(
-            f"📝 Опишіть виконану роботу для завдання #{task_id}:",
+        emoji = STATUS_EMOJI.get(task.status, "⚪")
+        detail = (
+            f"📋 Завдання #{task.id}\n\n"
+            f"📌 {task.title}\n"
+            f"📝 {task.description or '—'}\n\n"
+            f"Статус: {emoji} {task.status.value}\n"
+            f"Пріоритет: {task.priority.value}\n"
+            f"Тип: {task.type.value}\n"
         )
 
-    except ValueError:
-        await message.answer("❌ Невірний номер завдання. Будь ласка, введіть число.")
+        await callback_query.message.answer(
+            detail,
+            reply_markup=get_task_detail_nav_keyboard(),
+        )
+        await callback_query.message.answer(
+            "Підтвердіть завершення завдання:",
+            reply_markup=get_confirm_complete_keyboard(task_id),
+        )
+        await state.set_state(ExecutorStates.task_confirmation)
+
     except Exception as e:
-        await message.answer(
+        await callback_query.message.answer(
             f"❌ Помилка: {str(e)}",
             reply_markup=get_executor_main_menu(),
         )
         await state.set_state(ExecutorStates.main_menu)
+
+
+@router.message(ExecutorStates.task_confirmation, F.text == "⬅️ Назад")
+async def confirm_task_go_back(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Return to IN_PROGRESS task list from task-detail/confirmation screen."""
+    await _show_complete_task_list(message, message.from_user.id, state, user_service, task_service)
+
+
+@router.callback_query(F.data.startswith("confirm_complete_"))
+async def confirm_complete_callback(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    """Request feedback text before completing the task."""
+    await callback_query.answer()
+    task_id = int(callback_query.data[len("confirm_complete_"):])
+    await state.update_data(task_id=task_id)
+    await state.set_state(ExecutorStates.feedback_input)
+    await callback_query.message.answer(
+        "📝 Опишіть, будь ласка, що було виконано. Без коментаря завдання не може бути завершене.",
+    )
+
+
+@router.message(ExecutorStates.feedback_input, F.text == "⬅️ Назад")
+async def feedback_go_back(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Abort feedback input and return to IN_PROGRESS task list."""
+    await state.clear()
+    await _show_complete_task_list(message, message.from_user.id, state, user_service, task_service)
 
 
 @router.message(ExecutorStates.feedback_input)
@@ -194,33 +293,25 @@ async def complete_task_submit(
     task_service: TaskService,
     user_service: UserService,
 ) -> None:
-    """Submit task completion with feedback."""
+    """Submit feedback and complete the task."""
+    feedback = message.text.strip() if message.text else ""
+    if not feedback:
+        await message.answer(
+            "📝 Коментар не може бути порожнім. Опишіть, будь ласка, що було виконано.",
+        )
+        return
+
     try:
         state_data = await state.get_data()
         task_id = state_data.get("task_id")
 
-        task = await task_service.complete_task(task_id, message.text)
-
-        # Notify applicant
-        applicant = task.applicant
-        try:
-            from aiogram import Bot
-
-            bot = Bot(token="")  # Will be set from context
-            await bot.send_message(
-                applicant.telegram_id,
-                f"✅ Завдання #{task_id} завершено!\n\n"
-                f"Відгуки: {message.text}\n\n"
-                f"Будь ласка, підтвердьте, що робота виконана.",
-            )
-        except Exception as e:
-            print(f"Помилка при надсиланні повідомлення заявнику: {e}")
+        await task_service.complete_task(task_id, feedback)
+        await state.clear()
 
         await message.answer(
-            f"✅ Завдання #{task_id} позначено як очікує підтвердження від заявника!",
-            reply_markup=get_executor_main_menu(),
+            f"✅ Завдання #{task_id} передано на підтвердження заявнику!",
         )
-        await state.set_state(ExecutorStates.main_menu)
+        await _show_complete_task_list(message, message.from_user.id, state, user_service, task_service)
 
     except Exception as e:
         await message.answer(

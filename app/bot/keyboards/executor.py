@@ -99,3 +99,27 @@ def get_task_detail_nav_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[[KeyboardButton(text="⬅️ Назад")]],
         resize_keyboard=True,
     )
+
+
+def get_complete_tasks_keyboard(tasks: list) -> InlineKeyboardMarkup:
+    """InlineKeyboard listing IN_PROGRESS tasks for the complete-task flow."""
+    buttons = []
+    for task in tasks:
+        emoji = STATUS_EMOJI.get(task.status, "⚪")
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{emoji} {task.title}",
+                callback_data=f"complete_task_{task.id}",
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_confirm_complete_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    """InlineKeyboard for task-detail screen in the complete-task flow."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="✅ Підтвердити завершення",
+            callback_data=f"confirm_complete_{task_id}",
+        )
+    ]])

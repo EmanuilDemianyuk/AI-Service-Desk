@@ -171,7 +171,7 @@ async def request_status_show(
         await state.set_state(ApplicantStates.main_menu)
 
 
-@router.callback_query(F.data.startswith("confirm_"))
+@router.callback_query(F.data.in_({"confirm_yes", "confirm_no"}))
 async def confirm_task_completion(
     callback_query: CallbackQuery,
     state: FSMContext,
@@ -180,11 +180,8 @@ async def confirm_task_completion(
     """Handle task confirmation."""
     await callback_query.answer()
     try:
-        parts = callback_query.data.split("_")
-        action = parts[1]
-
         state_data = await state.get_data()
-        task_id = state_data.get("task_id") or (int(parts[2]) if len(parts) > 2 else None)
+        task_id = state_data.get("task_id")
 
         if task_id is None:
             await callback_query.message.answer(
@@ -194,7 +191,7 @@ async def confirm_task_completion(
             await state.set_state(ApplicantStates.main_menu)
             return
 
-        if action == "yes":
+        if callback_query.data == "confirm_yes":
             await task_service.confirm_task(task_id)
             await callback_query.message.answer(
                 f"✅ Завдання #{task_id} підтверджено як завершене!",

@@ -12,6 +12,8 @@ from app.bot.keyboards.executor import (
     get_my_tasks_keyboard,
     get_my_tasks_nav_keyboard,
     get_task_detail_nav_keyboard,
+    get_complete_tasks_keyboard,
+    get_confirm_complete_keyboard,
     STATUS_EMOJI,
 )
 from app.bot.keyboards.admin import (
@@ -36,6 +38,8 @@ __all__ = [
     "get_my_tasks_keyboard",
     "get_my_tasks_nav_keyboard",
     "get_task_detail_nav_keyboard",
+    "get_complete_tasks_keyboard",
+    "get_confirm_complete_keyboard",
     "STATUS_EMOJI",
     "get_admin_main_menu",
     "get_admin_nav_keyboard",
