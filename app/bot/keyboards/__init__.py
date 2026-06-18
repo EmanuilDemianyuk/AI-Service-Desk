@@ -31,6 +31,7 @@ from app.bot.keyboards.admin import (
     get_delete_confirmation_keyboard,
     get_create_role_keyboard,
     get_executor_type_keyboard,
+    get_setrole_executor_type_keyboard,
 )
 
 __all__ = [
@@ -61,4 +62,5 @@ __all__ = [
     "get_delete_confirmation_keyboard",
     "get_create_role_keyboard",
     "get_executor_type_keyboard",
+    "get_setrole_executor_type_keyboard",
 ]

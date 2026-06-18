@@ -103,10 +103,21 @@ def get_create_role_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_executor_type_keyboard() -> InlineKeyboardMarkup:
-    """Executor type selection keyboard (only shown when role=EXECUTOR)."""
+    """Executor type selection keyboard used during the create-user form."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🖥 SysAdmin (IT-системи)", callback_data="create_extype_SYSADMIN")],
             [InlineKeyboardButton(text="🔨 Master (господарська частина)", callback_data="create_extype_MASTER")],
+        ]
+    )
+
+
+def get_setrole_executor_type_keyboard() -> InlineKeyboardMarkup:
+    """Executor type selection keyboard used during the change-role flow."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🖥 SysAdmin (IT-системи)", callback_data="setrole_extype_SYSADMIN")],
+            [InlineKeyboardButton(text="🔨 Master (господарська частина)", callback_data="setrole_extype_MASTER")],
+            [InlineKeyboardButton(text="↩ Назад", callback_data="user_back")],
         ]
     )

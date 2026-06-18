@@ -11,11 +11,13 @@ from app.bot.keyboards import (
     get_cancel_keyboard,
     get_create_role_keyboard,
     get_executor_type_keyboard,
+    get_setrole_executor_type_keyboard,
     get_delete_confirmation_keyboard,
     get_role_keyboard,
     get_user_actions_keyboard,
     get_user_list_keyboard,
 )
+from app.schemas import UserUpdate
 from app.bot.states import AdminStates
 from app.database.models import UserRole, ExecutorType
 from app.exceptions import AuthorizationError, ValidationError
@@ -73,6 +75,7 @@ async def _show_user_list(target: Message | CallbackQuery, state: FSMContext, us
         AdminStates.user_list,
         AdminStates.user_detail,
         AdminStates.set_role_select_role,
+        AdminStates.set_role_executor_type,
         AdminStates.confirm_delete_user,
         AdminStates.task_list,
     ),
@@ -136,7 +139,12 @@ async def admin_user_detail(
 # ── Back to user list (from detail / role-change / delete-confirmation) ───
 
 @router.callback_query(
-    StateFilter(AdminStates.user_detail, AdminStates.set_role_select_role, AdminStates.confirm_delete_user),
+    StateFilter(
+        AdminStates.user_detail,
+        AdminStates.set_role_select_role,
+        AdminStates.set_role_executor_type,
+        AdminStates.confirm_delete_user,
+    ),
     F.data == "user_back",
 )
 async def admin_back_to_users(
@@ -171,27 +179,85 @@ async def admin_user_start_role_change(
     await callback_query.answer()
 
 
-@router.callback_query(AdminStates.set_role_select_role, F.data.startswith("setrole_"))
+@router.callback_query(
+    AdminStates.set_role_select_role,
+    F.data.regexp(r"^setrole_\d+_"),
+)
 async def admin_set_role(
     callback_query: CallbackQuery,
     state: FSMContext,
     user_service: UserService,
 ) -> None:
     await _assert_admin(user_service, callback_query.from_user.id)
+    await callback_query.answer()
 
     parts = callback_query.data.split("_")
+    # callback_data format: setrole_{user_id}_{ROLE}
     user_id, role_str = int(parts[1]), parts[2]
     new_role = UserRole(role_str)
 
-    updated = await user_service.set_role(user_id, new_role)
+    if new_role == UserRole.EXECUTOR:
+        # Store user_id and go to executor-type selection step
+        await state.update_data(edit_user_id=user_id)
+        await state.set_state(AdminStates.set_role_executor_type)
+        await callback_query.message.answer(
+            "✅ Роль: <b>Виконавець</b>\n\nОберіть <b>тип виконавця</b>:",
+            reply_markup=get_setrole_executor_type_keyboard(),
+            parse_mode="HTML",
+        )
+        return
 
+    # For APPLICANT / ADMIN: update role and clear type via update_user_fields
+    try:
+        updated = await user_service.update_user_fields(user_id, UserUpdate(role=new_role))
+    except Exception as exc:
+        await callback_query.message.answer(f"❌ Помилка: {exc}")
+        return
+
+    await state.set_state(AdminStates.main_menu)
     await callback_query.message.answer(
         f"✅ Роль <b>{updated.full_name}</b> змінено на: {_ROLE_LABELS[new_role]}",
         reply_markup=get_admin_main_menu(),
         parse_mode="HTML",
     )
-    await state.set_state(AdminStates.main_menu)
+
+
+@router.callback_query(AdminStates.set_role_executor_type, F.data.startswith("setrole_extype_"))
+async def admin_set_role_executor_type(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+    user_service: UserService,
+) -> None:
+    """Second step of role change: pick SYSADMIN or MASTER for the EXECUTOR role."""
+    await _assert_admin(user_service, callback_query.from_user.id)
     await callback_query.answer()
+
+    executor_type = ExecutorType(callback_query.data.split("_")[2])
+    data = await state.get_data()
+    user_id: int = data["edit_user_id"]
+
+    _TYPE_LABELS = {
+        ExecutorType.SYSADMIN: "SysAdmin (IT)",
+        ExecutorType.MASTER: "Master (господарча частина)",
+    }
+
+    try:
+        updated = await user_service.update_user_fields(
+            user_id,
+            UserUpdate(role=UserRole.EXECUTOR, type=executor_type),
+        )
+    except Exception as exc:
+        await callback_query.message.answer(f"❌ Помилка: {exc}")
+        return
+
+    await state.set_state(AdminStates.main_menu)
+    await callback_query.message.answer(
+        f"✅ Роль і тип <b>{updated.full_name}</b> оновлено:\n"
+        f"👔 Роль: {_ROLE_LABELS[UserRole.EXECUTOR]}\n"
+        f"🔧 Тип: {_TYPE_LABELS[executor_type]}",
+        reply_markup=get_admin_main_menu(),
+        parse_mode="HTML",
+    )
 
 
 # ── Delete user ────────────────────────────────────────────────────────────

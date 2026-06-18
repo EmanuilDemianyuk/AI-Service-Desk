@@ -37,6 +37,7 @@ class AdminStates(StatesGroup):
     user_list = State()
     user_detail = State()
     set_role_select_role = State()
+    set_role_executor_type = State()
     confirm_delete_user = State()
     # Create user multi-step form
     create_user_first_name = State()
