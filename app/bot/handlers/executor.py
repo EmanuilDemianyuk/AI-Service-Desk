@@ -33,21 +33,13 @@ async def new_tasks(
         )
         return
 
-    response = "🆕 Нові завдання:\n\n"
-    keyboard_buttons = []
-
+    response = "🆕 Нові завдання:\n\nОберіть завдання, щоб взяти в обробку:\n\n"
     for task in tasks:
         response += f"#{task.id} - {task.title}\n"
-        keyboard_buttons.append([
-            F.CallbackButton(
-                text=f"#{task.id}",
-                callback_data=f"take_task_{task.id}",
-            )
-        ])
 
     await message.answer(
         response,
-        reply_markup=get_task_list_keyboard(tasks) if tasks else None,
+        reply_markup=get_task_list_keyboard(tasks),
     )
     await state.set_state(ExecutorStates.new_tasks)
 
@@ -170,22 +162,32 @@ async def take_task_callback(
     task_service: TaskService,
 ) -> None:
     """Handle take task action."""
+    await callback_query.answer()
     try:
         task_id = int(callback_query.data.split("_")[2])
         user = await user_service.get_user_by_telegram_id(callback_query.from_user.id)
 
         if not user:
-            await callback_query.answer("❌ Користувач не знайдений")
+            await callback_query.message.answer("❌ Користувач не знайдений")
             return
 
         task = await task_service.take_task(task_id, user.id)
 
+        try:
+            await callback_query.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
         await callback_query.message.answer(
-            f"✅ Завдання #{task_id} взято в обробку!",
+            f"✅ Завдання #{task_id} взято в обробку!\n\n"
+            f"Перейдіть до «⏳ Мої завдання» для відстеження.",
             reply_markup=get_executor_main_menu(),
         )
         await state.set_state(ExecutorStates.main_menu)
-        await callback_query.answer()
 
     except Exception as e:
-        await callback_query.answer(f"❌ Помилка: {str(e)}")
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
+            reply_markup=get_executor_main_menu(),
+        )
+        await state.set_state(ExecutorStates.main_menu)

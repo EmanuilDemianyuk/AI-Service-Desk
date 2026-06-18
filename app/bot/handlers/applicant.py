@@ -178,25 +178,40 @@ async def confirm_task_completion(
     task_service: TaskService,
 ) -> None:
     """Handle task confirmation."""
-    action = callback_query.data.split("_")[1]
-    task_id = int(callback_query.data.split("_")[2]) if len(callback_query.data.split("_")) > 2 else 0
-
-    # Get task_id from state data
-    state_data = await state.get_data()
-    task_id = state_data.get("task_id")
-
-    if action == "yes":
-        task = await task_service.confirm_task(task_id)
-        await callback_query.message.answer(
-            f"✅ Завдання #{task_id} підтверджено як завершене!",
-            reply_markup=get_applicant_main_menu(),
-        )
-    else:
-        task = await task_service.reject_task(task_id)
-        await callback_query.message.answer(
-            f"❌ Завдання #{task_id} відхилено. Виконавець продовжить роботу.",
-            reply_markup=get_applicant_main_menu(),
-        )
-
-    await state.set_state(ApplicantStates.main_menu)
     await callback_query.answer()
+    try:
+        parts = callback_query.data.split("_")
+        action = parts[1]
+
+        state_data = await state.get_data()
+        task_id = state_data.get("task_id") or (int(parts[2]) if len(parts) > 2 else None)
+
+        if task_id is None:
+            await callback_query.message.answer(
+                "❌ Не вдалося визначити завдання. Будь ласка, спробуйте ще раз.",
+                reply_markup=get_applicant_main_menu(),
+            )
+            await state.set_state(ApplicantStates.main_menu)
+            return
+
+        if action == "yes":
+            await task_service.confirm_task(task_id)
+            await callback_query.message.answer(
+                f"✅ Завдання #{task_id} підтверджено як завершене!",
+                reply_markup=get_applicant_main_menu(),
+            )
+        else:
+            await task_service.reject_task(task_id)
+            await callback_query.message.answer(
+                f"❌ Завдання #{task_id} відхилено. Виконавець продовжить роботу.",
+                reply_markup=get_applicant_main_menu(),
+            )
+
+        await state.set_state(ApplicantStates.main_menu)
+
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
+            reply_markup=get_applicant_main_menu(),
+        )
+        await state.set_state(ApplicantStates.main_menu)

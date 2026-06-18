@@ -54,7 +54,7 @@ def get_task_list_keyboard(tasks: list) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text=f"#{task.id} - {task.title}",
-                    callback_data=f"task_select_{task.id}",
+                    callback_data=f"take_task_{task.id}",
                 ),
             ]
         )
