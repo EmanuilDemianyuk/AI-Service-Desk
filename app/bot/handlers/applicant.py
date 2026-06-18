@@ -197,11 +197,11 @@ async def view_request_callback(
             f"📋 Запит #{task.id}\n\n"
             f"📌 {task.title}\n"
             f"📝 {task.description or '—'}\n\n"
-            f"Статус: {emoji} {task.status.value}\n"
+            f"🚦 Статус: {emoji} {task.status.value}\n"
             f"⚡ Пріоритет: {task.priority.value}\n"
             f"🔧 Тип: {task.type.value}\n\n"
             f"👤 Заявник: {applicant_name}\n"
-            f"🛠 Виконавець: {executor_name}\n\n"
+            f"🛠  Виконавець: {executor_name}\n\n"
             f"📅 Створено: {created}\n"
             f"📅 Закрито: {closed}\n"
         )

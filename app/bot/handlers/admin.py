@@ -30,6 +30,10 @@ _ROLE_LABELS = {
     UserRole.EXECUTOR: "Виконавець",
     UserRole.ADMIN: "Адмін",
 }
+_TYPE_LABELS = {
+    ExecutorType.SYSADMIN: "Системний адміністратор",
+    ExecutorType.MASTER: "Майстер",
+}
 
 _MAX_NAME_LEN = 50
 
@@ -120,8 +124,9 @@ async def admin_user_detail(
     detail = (
         f"👤 <b>{target.full_name}</b>\n"
         f"📱 Telegram ID: <code>{target.telegram_id}</code>\n"
-        f"🏷 Username: @{target.username or 'N/A'}\n"
+        f"⚙️ Username: @{target.username or 'N/A'}\n"
         f"👔 Роль: {_ROLE_LABELS[target.role]}\n"
+        f"⚙️ Тип: {_TYPE_LABELS[target.type] if target.type else 'N/A'}\n"
         f"📅 Зареєстровано: {target.created_at.strftime('%Y-%m-%d')}"
     )
     if is_self:
