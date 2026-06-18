@@ -1,6 +1,16 @@
 """Executor keyboards."""
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from app.database.models import TaskStatus
+
+STATUS_EMOJI: dict = {
+    TaskStatus.NEW: "🔵",
+    TaskStatus.IN_PROGRESS: "🟡",
+    TaskStatus.WAITING_APPLICANT: "🟠",
+    TaskStatus.WAITING_EXECUTOR: "🟣",
+    TaskStatus.DONE: "🟢",
+    TaskStatus.CANCELLED: "🔴",
+}
 
 
 def get_executor_main_menu() -> ReplyKeyboardMarkup:
@@ -59,3 +69,33 @@ def get_task_list_keyboard(tasks: list) -> InlineKeyboardMarkup:
             ]
         )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_my_tasks_keyboard(tasks: list) -> InlineKeyboardMarkup:
+    """Get my tasks list keyboard with status emoji and title per task."""
+    buttons = []
+    for task in tasks:
+        emoji = STATUS_EMOJI.get(task.status, "⚪")
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{emoji} {task.title}",
+                callback_data=f"view_my_task_{task.id}",
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_my_tasks_nav_keyboard() -> ReplyKeyboardMarkup:
+    """Bottom navigation for the task-list screen: single 🏠 Головне меню button."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🏠 Головне меню")]],
+        resize_keyboard=True,
+    )
+
+
+def get_task_detail_nav_keyboard() -> ReplyKeyboardMarkup:
+    """Bottom navigation for the task-detail screen: single ⬅️ Назад button."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="⬅️ Назад")]],
+        resize_keyboard=True,
+    )

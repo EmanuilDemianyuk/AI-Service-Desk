@@ -10,11 +10,50 @@ from app.bot.keyboards import (
     get_task_action_keyboard,
     get_task_list_keyboard,
     get_complete_task_keyboard,
+    get_my_tasks_keyboard,
+    get_my_tasks_nav_keyboard,
+    get_task_detail_nav_keyboard,
+    STATUS_EMOJI,
 )
 from app.database.models import TaskStatus
 from app.services import UserService, TaskService
 
 router = Router()
+
+
+async def _show_task_list(
+    target: Message,
+    telegram_id: int,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Shared logic: fetch executor tasks and render the task-list screen."""
+    user = await user_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await target.answer("❌ Користувач не знайдений")
+        return
+
+    tasks = await task_service.get_executor_tasks(user.id)
+
+    # Update bottom ReplyKeyboard first — it persists for following messages.
+    if not tasks:
+        await target.answer(
+            "📭 У вас поки немає завдань.",
+            reply_markup=get_my_tasks_nav_keyboard(),
+        )
+        await state.set_state(ExecutorStates.my_tasks)
+        return
+
+    await target.answer(
+        "📋 Мої завдання",
+        reply_markup=get_my_tasks_nav_keyboard(),
+    )
+    await target.answer(
+        "Оберіть завдання для перегляду:",
+        reply_markup=get_my_tasks_keyboard(tasks),
+    )
+    await state.set_state(ExecutorStates.my_tasks)
 
 
 @router.message(ExecutorStates.main_menu, F.text == "🆕 Нові завдання")
@@ -52,29 +91,66 @@ async def my_tasks(
     task_service: TaskService,
 ) -> None:
     """Show the tasks currently being performed by the worker."""
-    user = await user_service.get_user_by_telegram_id(message.from_user.id)
-    if not user:
-        await message.answer("❌ Користувач не знайдений")
-        return
+    await _show_task_list(message, message.from_user.id, state, user_service, task_service)
 
-    tasks = await task_service.get_executor_tasks(user.id)
 
-    if not tasks:
-        await message.answer(
-            "📭 У вас немає завдань у процесі виконання.",
+@router.callback_query(F.data.startswith("view_my_task_"))
+async def view_my_task_callback(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+    task_service: TaskService,
+) -> None:
+    """Show full details of a selected task."""
+    await callback_query.answer()
+    try:
+        task_id = int(callback_query.data[len("view_my_task_"):])
+        task = await task_service.get_task(task_id)
+
+        emoji = STATUS_EMOJI.get(task.status, "⚪")
+        detail = (
+            f"📋 Завдання #{task.id}\n\n"
+            f"📌 {task.title}\n"
+            f"📝 {task.description or '—'}\n\n"
+            f"Статус: {emoji} {task.status.value}\n"
+            f"Пріоритет: {task.priority.value}\n"
+            f"Тип: {task.type.value}\n"
+        )
+        if task.feedback:
+            detail += f"\n💬 Відгук: {task.feedback}"
+
+        await callback_query.message.answer(
+            detail,
+            reply_markup=get_task_detail_nav_keyboard(),
+        )
+        await state.set_state(ExecutorStates.task_in_progress)
+
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
             reply_markup=get_executor_main_menu(),
         )
-        return
+        await state.set_state(ExecutorStates.main_menu)
 
-    response = "⏳ Ваші завдання в процесі:\n\n"
-    for task in tasks:
-        response += f"#{task.id} - {task.title} ({task.status.value})\n"
 
-    await message.answer(
-        response,
-        reply_markup=get_task_list_keyboard(tasks) if tasks else None,
-    )
-    await state.set_state(ExecutorStates.my_tasks)
+@router.message(ExecutorStates.my_tasks, F.text == "🏠 Головне меню")
+async def my_tasks_go_main_menu(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    """Return to executor main menu from task-list screen."""
+    await message.answer("🏠 Головне меню", reply_markup=get_executor_main_menu())
+    await state.set_state(ExecutorStates.main_menu)
+
+
+@router.message(ExecutorStates.task_in_progress, F.text == "⬅️ Назад")
+async def task_detail_go_back(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Return to task list from task-detail screen."""
+    await _show_task_list(message, message.from_user.id, state, user_service, task_service)
 
 
 @router.message(ExecutorStates.main_menu, F.text == "✅ Виконати завдання")
