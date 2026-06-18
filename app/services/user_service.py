@@ -6,6 +6,7 @@ from app.config import settings
 from app.database.models import User, UserRole, ExecutorType
 from app.database.repositories import UserRepository
 from app.exceptions import NotFoundError, ValidationError
+from app.schemas.schemas import UserUpdate
 
 
 class UserService:
@@ -97,6 +98,47 @@ class UserService:
         if not executors:
             raise NotFoundError("No executors available")
         return executors[0]
+
+    async def update_user_fields(self, user_id: int, data: UserUpdate) -> User:
+        """Partially update a user. Validates role/type consistency against the current DB state."""
+        user = await self.get_user(user_id)
+
+        # Unique telegram_id check (skip if unchanged)
+        if data.telegram_id is not None and data.telegram_id != user.telegram_id:
+            conflict = await self.repository.get_by_telegram_id_excluding(
+                data.telegram_id, exclude_user_id=user_id
+            )
+            if conflict:
+                raise ValidationError(f"telegram_id {data.telegram_id} is already taken")
+
+        # Resolve final role and type after merging with current DB values
+        final_role = data.role if data.role is not None else user.role
+
+        if data.type is not None:
+            final_type: ExecutorType | None = data.type
+        elif data.role is not None and data.role != UserRole.EXECUTOR:
+            # Role is explicitly changing away from EXECUTOR — clear type
+            final_type = None
+        else:
+            final_type = user.type
+
+        # Final business-rule validation on merged state
+        if final_role == UserRole.EXECUTOR and final_type is None:
+            raise ValidationError("type is required for EXECUTOR role (SYSADMIN or MASTER)")
+        if final_role != UserRole.EXECUTOR:
+            final_type = None  # always clear type for non-executor roles
+
+        update_kwargs: dict = {"role": final_role, "type": final_type}
+        if data.full_name is not None:
+            update_kwargs["full_name"] = data.full_name
+        if data.username is not None:
+            update_kwargs["username"] = data.username
+        if data.telegram_id is not None:
+            update_kwargs["telegram_id"] = data.telegram_id
+
+        user = await self.repository.update(user, **update_kwargs)
+        await self.repository.commit()
+        return user
 
     async def update_user(self, user_id: int, **kwargs) -> User:
         """Update user."""

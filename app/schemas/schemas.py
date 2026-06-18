@@ -30,6 +30,26 @@ class UserCreate(UserBase):
         return self
 
 
+class UserUpdate(BaseModel):
+    """User partial-update schema. All fields optional; only provided fields are changed."""
+
+    full_name: Optional[str] = None
+    username: Optional[str] = None
+    telegram_id: Optional[int] = None
+    role: Optional[UserRole] = None
+    type: Optional[ExecutorType] = None
+
+    @model_validator(mode="after")
+    def validate_role_type(self) -> "UserUpdate":
+        # When explicitly setting role=EXECUTOR, type must be provided in the same request
+        if self.role == UserRole.EXECUTOR and self.type is None:
+            raise ValueError("type is required when setting role to EXECUTOR (SYSADMIN or MASTER)")
+        # When explicitly setting a non-EXECUTOR role, type must not be provided
+        if self.role is not None and self.role != UserRole.EXECUTOR and self.type is not None:
+            raise ValueError("type must be null for non-EXECUTOR roles")
+        return self
+
+
 class UserResponse(UserBase):
     """User response schema."""
 

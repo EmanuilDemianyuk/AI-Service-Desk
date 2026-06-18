@@ -9,6 +9,7 @@ from app.services import UserService, TaskService
 from app.schemas import (
     HealthResponse,
     UserCreate,
+    UserUpdate,
     UserResponse,
     TaskResponse,
     TaskCreate,
@@ -62,6 +63,27 @@ async def list_users(
     user_repository = UserRepository(session)
     user_service = UserService(user_repository)
     return await user_service.get_all_users()
+
+
+@router.patch("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    session: AsyncSession = Depends(get_db_session),
+) -> UserResponse:
+    """Partially update a user. Only provided fields are changed.
+    EXECUTOR role requires type=SYSADMIN|MASTER.
+    Changing away from EXECUTOR automatically clears type.
+    """
+    user_repository = UserRepository(session)
+    user_service = UserService(user_repository)
+    try:
+        user = await user_service.update_user_fields(user_id, user_data)
+    except Exception as exc:
+        from app.exceptions import NotFoundError
+        status_code = status.HTTP_404_NOT_FOUND if isinstance(exc, NotFoundError) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    return user
 
 
 @router.get("/tasks", response_model=TaskListResponse)
