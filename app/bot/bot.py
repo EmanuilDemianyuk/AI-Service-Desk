@@ -6,7 +6,7 @@ from aiogram.types import BotCommand
 
 from app.config import settings
 from app.bot.handlers import routers
-from app.bot.middleware import CommandGuardMiddleware
+from app.bot.middleware import CommandGuardMiddleware, NavDeleteMiddleware
 
 
 async def setup_default_commands(bot: Bot) -> None:
@@ -25,8 +25,10 @@ async def setup_bot() -> tuple[Bot, Dispatcher]:
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # Register command guard before routers so it runs on every message first.
+    # Middlewares run in registration order. CommandGuard first (blocks flow interrupts),
+    # then NavDelete (removes nav messages from chat).
     dp.message.middleware(CommandGuardMiddleware())
+    dp.message.middleware(NavDeleteMiddleware())
 
     # Register routers
     for router in routers:

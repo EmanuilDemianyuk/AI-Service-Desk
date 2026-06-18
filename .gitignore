@@ -28,6 +28,10 @@ wheels/
 # Claoude 
 CLAUDE.md
 
+# Prompt files
+prompt.md
+pr.md
+
 # Virtual environments
 venv/
 ENV/
