@@ -1,10 +1,10 @@
 """Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 
-from app.database.models import TaskStatus, TaskType, TaskPriority, UserRole
+from app.database.models import TaskStatus, TaskType, TaskPriority, UserRole, ExecutorType
 
 
 class UserBase(BaseModel):
@@ -19,6 +19,15 @@ class UserCreate(UserBase):
     """User creation schema."""
 
     telegram_id: int
+    type: Optional[ExecutorType] = None
+
+    @model_validator(mode="after")
+    def validate_executor_type(self) -> "UserCreate":
+        if self.role == UserRole.EXECUTOR and self.type is None:
+            raise ValueError("type is required for EXECUTOR role (SYSADMIN or MASTER)")
+        if self.role != UserRole.EXECUTOR and self.type is not None:
+            raise ValueError("type must be null for non-EXECUTOR roles")
+        return self
 
 
 class UserResponse(UserBase):
@@ -26,6 +35,7 @@ class UserResponse(UserBase):
 
     id: int
     telegram_id: int
+    type: Optional[ExecutorType] = None
     is_active: bool
     created_at: datetime
 

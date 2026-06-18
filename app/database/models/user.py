@@ -15,6 +15,14 @@ class UserRole(str, enum.Enum):
     EXECUTOR = "EXECUTOR"
     ADMIN = "ADMIN"
 
+
+class ExecutorType(str, enum.Enum):
+    """Executor specialisation types. Only relevant for EXECUTOR role."""
+
+    SYSADMIN = "SYSADMIN"
+    MASTER = "MASTER"
+
+
 class User(Base):
     """User model."""
 
@@ -25,6 +33,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.APPLICANT)
+    type: Mapped[ExecutorType | None] = mapped_column(SQLEnum(ExecutorType), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

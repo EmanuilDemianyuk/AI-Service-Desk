@@ -100,3 +100,13 @@ def get_create_role_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="👑 Адмін", callback_data="create_role_ADMIN")],
         ]
     )
+
+
+def get_executor_type_keyboard() -> InlineKeyboardMarkup:
+    """Executor type selection keyboard (only shown when role=EXECUTOR)."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🖥 SysAdmin (IT-системи)", callback_data="create_extype_SYSADMIN")],
+            [InlineKeyboardButton(text="🔨 Master (господарська частина)", callback_data="create_extype_MASTER")],
+        ]
+    )

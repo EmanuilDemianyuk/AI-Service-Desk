@@ -8,6 +8,8 @@ from app.database.repositories import UserRepository, TaskRepository
 from app.services import UserService, TaskService
 from app.schemas import (
     HealthResponse,
+    UserCreate,
+    UserResponse,
     TaskResponse,
     TaskCreate,
     TaskUpdate,
@@ -26,6 +28,40 @@ async def health_check() -> HealthResponse:
         status="healthy",
         message="Service is running",
     )
+
+
+@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: UserCreate,
+    session: AsyncSession = Depends(get_db_session),
+) -> UserResponse:
+    """Create a new user with any role. EXECUTOR requires type=SYSADMIN|MASTER."""
+    user_repository = UserRepository(session)
+    user_service = UserService(user_repository)
+    try:
+        user = await user_service.create_user(
+            telegram_id=user_data.telegram_id,
+            full_name=user_data.full_name,
+            username=user_data.username,
+            role=user_data.role,
+            executor_type=user_data.type,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return user
+
+
+@router.get("/users", response_model=list[UserResponse])
+async def list_users(
+    session: AsyncSession = Depends(get_db_session),
+) -> list[UserResponse]:
+    """List all users."""
+    user_repository = UserRepository(session)
+    user_service = UserService(user_repository)
+    return await user_service.get_all_users()
 
 
 @router.get("/tasks", response_model=TaskListResponse)

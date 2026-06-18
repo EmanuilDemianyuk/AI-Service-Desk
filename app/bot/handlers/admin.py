@@ -10,13 +10,14 @@ from app.bot.keyboards import (
     get_admin_nav_keyboard,
     get_cancel_keyboard,
     get_create_role_keyboard,
+    get_executor_type_keyboard,
     get_delete_confirmation_keyboard,
     get_role_keyboard,
     get_user_actions_keyboard,
     get_user_list_keyboard,
 )
 from app.bot.states import AdminStates
-from app.database.models import UserRole
+from app.database.models import UserRole, ExecutorType
 from app.exceptions import AuthorizationError, ValidationError
 from app.services import TaskService, UserService
 
@@ -264,6 +265,7 @@ async def admin_create_user_start(
         AdminStates.create_user_last_name,
         AdminStates.create_user_telegram_id,
         AdminStates.create_user_role,
+        AdminStates.create_user_executor_type,
     ),
     F.text == "❌ Скасувати",
 )
@@ -351,10 +353,21 @@ async def admin_create_user_role(
     user_service: UserService,
 ) -> None:
     await _assert_admin(user_service, callback_query.from_user.id)
+    await callback_query.answer()
 
     role = UserRole(callback_query.data.split("_")[2])
-    data = await state.get_data()
+    await state.update_data(role=role.value)
 
+    if role == UserRole.EXECUTOR:
+        await state.set_state(AdminStates.create_user_executor_type)
+        await callback_query.message.answer(
+            "✅ Роль: <b>Виконавець</b>\n\nКрок 5/5 — Оберіть <b>тип виконавця</b>:",
+            reply_markup=get_executor_type_keyboard(),
+            parse_mode="HTML",
+        )
+        return
+
+    data = await state.get_data()
     full_name = f"{data['first_name']} {data['last_name']}"
     telegram_id: int = data["telegram_id"]
 
@@ -368,7 +381,6 @@ async def admin_create_user_role(
         await callback_query.message.answer(
             f"❌ Помилка: {exc.message}\n\nСпробуйте ще раз або натисніть ❌ Скасувати.",
         )
-        await callback_query.answer()
         return
 
     await state.clear()
@@ -381,7 +393,52 @@ async def admin_create_user_role(
         reply_markup=get_admin_main_menu(),
         parse_mode="HTML",
     )
+
+
+@router.callback_query(AdminStates.create_user_executor_type, F.data.startswith("create_extype_"))
+async def admin_create_user_executor_type(
+    callback_query: CallbackQuery,
+    state: FSMContext,
+    user_service: UserService,
+) -> None:
+    """Final step: pick SYSADMIN or MASTER, then create the executor user."""
+    await _assert_admin(user_service, callback_query.from_user.id)
     await callback_query.answer()
+
+    executor_type = ExecutorType(callback_query.data.split("_")[2])
+    data = await state.get_data()
+    full_name = f"{data['first_name']} {data['last_name']}"
+    telegram_id: int = data["telegram_id"]
+
+    _TYPE_LABELS = {
+        ExecutorType.SYSADMIN: "SysAdmin (IT)",
+        ExecutorType.MASTER: "Master (господарча частина)",
+    }
+
+    try:
+        user = await user_service.create_user(
+            telegram_id=telegram_id,
+            full_name=full_name,
+            role=UserRole.EXECUTOR,
+            executor_type=executor_type,
+        )
+    except ValidationError as exc:
+        await callback_query.message.answer(
+            f"❌ Помилка: {exc.message}\n\nСпробуйте ще раз або натисніть ❌ Скасувати.",
+        )
+        return
+
+    await state.clear()
+    await state.set_state(AdminStates.main_menu)
+    await callback_query.message.answer(
+        f"✅ Виконавця успішно створено!\n\n"
+        f"👤 <b>{user.full_name}</b>\n"
+        f"📱 Telegram ID: <code>{user.telegram_id}</code>\n"
+        f"👔 Роль: {_ROLE_LABELS[user.role]}\n"
+        f"🔧 Тип: {_TYPE_LABELS[executor_type]}",
+        reply_markup=get_admin_main_menu(),
+        parse_mode="HTML",
+    )
 
 
 # ── Task list ──────────────────────────────────────────────────────────────

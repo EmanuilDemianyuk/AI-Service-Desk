@@ -43,6 +43,7 @@ class AdminStates(StatesGroup):
     create_user_last_name = State()
     create_user_telegram_id = State()
     create_user_role = State()
+    create_user_executor_type = State()
     # Task overview
     task_list = State()
 
@@ -59,4 +60,5 @@ FLOW_STATES: frozenset[str] = frozenset({
     AdminStates.create_user_last_name.state,
     AdminStates.create_user_telegram_id.state,
     AdminStates.create_user_role.state,
+    AdminStates.create_user_executor_type.state,
 })

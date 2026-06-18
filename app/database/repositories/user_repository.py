@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import User
+from app.database.models import User, ExecutorType
 from app.database.repositories.base import BaseRepository
 
 
@@ -48,6 +48,17 @@ class UserRepository(BaseRepository):
 
         result = await self.session.execute(
             select(User).where(User.role == UserRole.EXECUTOR)
+        )
+        return result.scalars().all()
+
+    async def get_executors_by_type(self, executor_type: ExecutorType) -> list[User]:
+        """Get executor users filtered by their specialisation type."""
+        from app.database.models import UserRole
+
+        result = await self.session.execute(
+            select(User).where(
+                (User.role == UserRole.EXECUTOR) & (User.type == executor_type)
+            )
         )
         return result.scalars().all()
 

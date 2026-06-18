@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database.models import User, UserRole
+from app.database.models import User, UserRole, ExecutorType
 from app.database.repositories import UserRepository
 from app.exceptions import NotFoundError, ValidationError
 
@@ -20,18 +20,24 @@ class UserService:
         full_name: str,
         username: str | None = None,
         role: UserRole = UserRole.APPLICANT,
+        executor_type: ExecutorType | None = None,
     ) -> User:
         """Create a new user."""
-        # Check if user already exists
         existing_user = await self.repository.get_by_telegram_id(telegram_id)
         if existing_user:
             raise ValidationError(f"User with Telegram ID {telegram_id} already exists")
+
+        if role == UserRole.EXECUTOR and executor_type is None:
+            raise ValidationError("executor_type is required for EXECUTOR role")
+        if role != UserRole.EXECUTOR and executor_type is not None:
+            raise ValidationError("executor_type must be None for non-EXECUTOR roles")
 
         user = await self.repository.create(
             telegram_id=telegram_id,
             full_name=full_name,
             username=username,
             role=role,
+            type=executor_type,
         )
         await self.repository.commit()
         return user
@@ -82,10 +88,12 @@ class UserService:
         return user
 
     async def get_executor_for_type(self, task_type: str) -> User:
-        """Get executor for task type."""
-        # Get the first executor (simplified logic)
-        # In a real app, you might have multiple executors per type
-        executors = await self.repository.get_all_executors()
+        """Return executor whose type matches the task type (SYSTEM→SYSADMIN, LOCAL→MASTER)."""
+        desired = ExecutorType.SYSADMIN if task_type == "SYSTEM" else ExecutorType.MASTER
+        executors = await self.repository.get_executors_by_type(desired)
+        if not executors:
+            # fallback: any executor
+            executors = await self.repository.get_all_executors()
         if not executors:
             raise NotFoundError("No executors available")
         return executors[0]
