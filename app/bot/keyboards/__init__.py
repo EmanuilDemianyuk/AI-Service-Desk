@@ -1,6 +1,10 @@
 # Bot keyboards
 from app.bot.keyboards.applicant import (
     get_applicant_main_menu,
+    get_applicant_nav_keyboard,
+    get_applicant_detail_nav_keyboard,
+    get_waiting_tasks_keyboard,
+    get_task_confirm_keyboard,
     get_confirmation_keyboard,
     get_task_actions_keyboard,
 )
@@ -29,6 +33,10 @@ from app.bot.keyboards.admin import (
 
 __all__ = [
     "get_applicant_main_menu",
+    "get_applicant_nav_keyboard",
+    "get_applicant_detail_nav_keyboard",
+    "get_waiting_tasks_keyboard",
+    "get_task_confirm_keyboard",
     "get_confirmation_keyboard",
     "get_task_actions_keyboard",
     "get_executor_main_menu",

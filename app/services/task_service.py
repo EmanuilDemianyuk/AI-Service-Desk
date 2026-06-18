@@ -50,6 +50,13 @@ class TaskService:
             raise NotFoundError(f"Task {task_id} not found")
         return task
 
+    async def get_task_with_relations(self, task_id: int) -> Task:
+        """Get task by ID with applicant and executor eagerly loaded."""
+        task = await self.task_repository.get_by_id_with_relations(task_id)
+        if not task:
+            raise NotFoundError(f"Task {task_id} not found")
+        return task
+
     async def get_task_by_notion_id(self, notion_page_id: str) -> Task | None:
         """Get task by Notion page ID."""
         return await self.task_repository.get_by_notion_id(notion_page_id)
@@ -69,6 +76,10 @@ class TaskService:
     async def get_executor_tasks(self, executor_id: int) -> list[Task]:
         """Get IN_PROGRESS and WAITING_EXECUTOR tasks for executor."""
         return await self.task_repository.get_executor_in_progress_tasks(executor_id)
+
+    async def get_user_waiting_tasks(self, user_id: int) -> list[Task]:
+        """Get WAITING_APPLICANT tasks for user (as applicant)."""
+        return await self.task_repository.get_waiting_for_applicant(user_id)
 
     async def take_task(self, task_id: int, executor_id: int) -> Task:
         """Take task into progress."""
@@ -113,14 +124,15 @@ class TaskService:
         return task
 
     async def reject_task(self, task_id: int) -> Task:
-        """Reject task completion by applicant."""
+        """Reject task completion: return to IN_PROGRESS and clear feedback."""
         task = await self.get_task(task_id)
         if task.status != TaskStatus.WAITING_APPLICANT:
             raise ValueError(f"Task {task_id} is not waiting for applicant confirmation")
 
         task = await self.task_repository.update(
             task,
-            status=TaskStatus.WAITING_EXECUTOR,
+            status=TaskStatus.IN_PROGRESS,
+            feedback=None,
         )
         await self.task_repository.commit()
         return task

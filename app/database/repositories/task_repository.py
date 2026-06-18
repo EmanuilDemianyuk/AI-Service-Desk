@@ -1,6 +1,7 @@
 """Task repository."""
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import Task, TaskStatus
@@ -23,6 +24,15 @@ class TaskRepository(BaseRepository):
     async def get_by_id(self, task_id: int) -> Task | None:
         """Get task by ID."""
         result = await self.session.execute(select(Task).where(Task.id == task_id))
+        return result.scalar_one_or_none()
+
+    async def get_by_id_with_relations(self, task_id: int) -> Task | None:
+        """Get task by ID with applicant and executor eagerly loaded."""
+        result = await self.session.execute(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(selectinload(Task.applicant), selectinload(Task.executor))
+        )
         return result.scalar_one_or_none()
 
     async def get_by_notion_id(self, notion_page_id: str) -> Task | None:
@@ -60,6 +70,16 @@ class TaskRepository(BaseRepository):
         """Get all NEW tasks."""
         result = await self.session.execute(
             select(Task).where(Task.status == TaskStatus.NEW)
+        )
+        return result.scalars().all()
+
+    async def get_waiting_for_applicant(self, applicant_id: int) -> list[Task]:
+        """Get WAITING_APPLICANT tasks for a given applicant."""
+        result = await self.session.execute(
+            select(Task).where(
+                (Task.applicant_id == applicant_id)
+                & (Task.status == TaskStatus.WAITING_APPLICANT)
+            )
         )
         return result.scalars().all()
 

@@ -9,11 +9,47 @@ def get_applicant_main_menu() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text="📝 Створити запит")],
             [KeyboardButton(text="📋 Мої запити")],
-            [KeyboardButton(text="🔍 Статус запиту")],
+            [KeyboardButton(text="✅ Підтвердити запит")],
         ],
         resize_keyboard=True,
     )
     return keyboard
+
+
+def get_applicant_nav_keyboard() -> ReplyKeyboardMarkup:
+    """Bottom navigation for the confirm-requests list screen."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🏠 Головне меню")]],
+        resize_keyboard=True,
+    )
+
+
+def get_applicant_detail_nav_keyboard() -> ReplyKeyboardMarkup:
+    """Bottom navigation for the confirm-request detail screen."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="⬅️ Назад")]],
+        resize_keyboard=True,
+    )
+
+
+def get_waiting_tasks_keyboard(tasks: list) -> InlineKeyboardMarkup:
+    """InlineKeyboard listing WAITING_APPLICANT tasks."""
+    buttons = [
+        [InlineKeyboardButton(
+            text=f"🟠 {task.title}",
+            callback_data=f"wait_view_{task.id}",
+        )]
+        for task in tasks
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_task_confirm_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    """InlineKeyboard for task confirmation: confirm or reject."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Підтвердити", callback_data="confirm_yes"),
+        InlineKeyboardButton(text="❌ Скасувати", callback_data="confirm_no"),
+    ]])
 
 
 def get_confirmation_keyboard() -> InlineKeyboardMarkup:

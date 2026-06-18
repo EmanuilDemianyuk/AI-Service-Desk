@@ -8,6 +8,10 @@ from datetime import datetime
 from app.bot.states import ApplicantStates
 from app.bot.keyboards import (
     get_applicant_main_menu,
+    get_applicant_nav_keyboard,
+    get_applicant_detail_nav_keyboard,
+    get_waiting_tasks_keyboard,
+    get_task_confirm_keyboard,
     get_confirmation_keyboard,
     get_task_actions_keyboard,
 )
@@ -130,45 +134,115 @@ async def my_requests(
     await message.answer(response, reply_markup=get_applicant_main_menu())
 
 
-@router.message(ApplicantStates.main_menu, F.text == "🔍 Статус запиту")
-async def request_status_start(message: Message, state: FSMContext) -> None:
-    """Start request status check."""
-    await state.set_state(ApplicantStates.status_input)
-    await message.answer("🔍 Введіть номер запиту:")
+async def _show_confirm_requests_list(
+    target: Message,
+    telegram_id: int,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Shared logic: fetch WAITING_APPLICANT tasks and render the confirm-requests screen."""
+    user = await user_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await target.answer("❌ Користувач не знайдений")
+        return
 
-@router.message(ApplicantStates.status_input)
-async def request_status_show(
+    tasks = await task_service.get_user_waiting_tasks(user.id)
+
+    if not tasks:
+        await target.answer(
+            "📭 Немає запитів, що очікують підтвердження.",
+            reply_markup=get_applicant_nav_keyboard(),
+        )
+        await state.set_state(ApplicantStates.confirm_requests)
+        return
+
+    await target.answer(
+        "✅ Підтвердити запит",
+        reply_markup=get_applicant_nav_keyboard(),
+    )
+    await target.answer(
+        "Оберіть запит для перегляду:",
+        reply_markup=get_waiting_tasks_keyboard(tasks),
+    )
+    await state.set_state(ApplicantStates.confirm_requests)
+
+
+@router.message(ApplicantStates.main_menu, F.text == "✅ Підтвердити запит")
+async def confirm_requests_section(
     message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Enter the confirm-requests section."""
+    await _show_confirm_requests_list(message, message.from_user.id, state, user_service, task_service)
+
+
+@router.message(ApplicantStates.confirm_requests, F.text == "🏠 Головне меню")
+async def confirm_requests_go_main_menu(message: Message, state: FSMContext) -> None:
+    """Return to applicant main menu from confirm-requests list screen."""
+    await message.answer("🏠 Головне меню", reply_markup=get_applicant_main_menu())
+    await state.set_state(ApplicantStates.main_menu)
+
+
+@router.callback_query(F.data.startswith("wait_view_"))
+async def wait_view_task_callback(
+    callback_query: CallbackQuery,
     state: FSMContext,
     task_service: TaskService,
 ) -> None:
-    """Show request status."""
+    """Show full details of a WAITING_APPLICANT task."""
+    await callback_query.answer()
     try:
-        task_id = int(message.text)
-        task = await task_service.get_task(task_id)
+        task_id = int(callback_query.data[len("wait_view_"):])
+        task = await task_service.get_task_with_relations(task_id)
 
-        response = f"""
-📋 Запит #{task.id}
+        executor_name = task.executor.full_name if task.executor else "—"
+        applicant_name = task.applicant.full_name if task.applicant else "—"
+        closed = task.closed_at.strftime("%Y-%m-%d %H:%M") if task.closed_at else "—"
 
-Назва: {task.title}
+        detail = (
+            f"📋 Запит #{task.id}\n\n"
+            f"📌 {task.title}\n"
+            f"📝 {task.description or '—'}\n\n"
+            f"👤 Заявник: {applicant_name}\n"
+            f"🔧 Виконавець: {executor_name}\n"
+            f"Статус: 🟠 {task.status.value}\n"
+            f"Пріоритет: {task.priority.value}\n\n"
+            f"💬 Коментар виконавця: {task.feedback or '—'}\n"
+            f"📅 Дата завершення: {closed}\n"
+        )
 
-Статус: {task.status.value}
+        await state.update_data(task_id=task_id)
 
-Виконавець: {task.executor.full_name if task.executor else "Не призначено"}
-Тип: {task.type.value}
-Пріоритет: {task.priority.value}
+        await callback_query.message.answer(
+            detail,
+            reply_markup=get_applicant_detail_nav_keyboard(),
+        )
+        await callback_query.message.answer(
+            "Підтвердьте або скасуйте виконання:",
+            reply_markup=get_task_confirm_keyboard(task_id),
+        )
+        await state.set_state(ApplicantStates.confirm_request_detail)
 
-Створено: {task.created_at.strftime('%Y-%m-%d %H:%M')}
-        """
-
-        await message.answer(response, reply_markup=get_applicant_main_menu())
-        await state.set_state(ApplicantStates.main_menu)
-
-    except ValueError:
-        await message.answer("❌ Недійсний номер запиту. Будь ласка, введіть номер.")
     except Exception as e:
-        await message.answer(f"❌ Помилка: {str(e)}", reply_markup=get_applicant_main_menu())
+        await callback_query.message.answer(
+            f"❌ Помилка: {str(e)}",
+            reply_markup=get_applicant_main_menu(),
+        )
         await state.set_state(ApplicantStates.main_menu)
+
+
+@router.message(ApplicantStates.confirm_request_detail, F.text == "⬅️ Назад")
+async def confirm_request_detail_go_back(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+    task_service: TaskService,
+) -> None:
+    """Return to WAITING_APPLICANT task list from detail screen."""
+    await _show_confirm_requests_list(message, message.from_user.id, state, user_service, task_service)
 
 
 @router.callback_query(F.data.in_({"confirm_yes", "confirm_no"}))
@@ -176,8 +250,9 @@ async def confirm_task_completion(
     callback_query: CallbackQuery,
     state: FSMContext,
     task_service: TaskService,
+    user_service: UserService,
 ) -> None:
-    """Handle task confirmation."""
+    """Handle task confirmation or rejection by applicant."""
     await callback_query.answer()
     try:
         state_data = await state.get_data()
@@ -195,16 +270,20 @@ async def confirm_task_completion(
             await task_service.confirm_task(task_id)
             await callback_query.message.answer(
                 f"✅ Завдання #{task_id} підтверджено як завершене!",
-                reply_markup=get_applicant_main_menu(),
             )
         else:
             await task_service.reject_task(task_id)
             await callback_query.message.answer(
-                f"❌ Завдання #{task_id} відхилено. Виконавець продовжить роботу.",
-                reply_markup=get_applicant_main_menu(),
+                f"↩️ Завдання #{task_id} повернуто виконавцю на доопрацювання.",
             )
 
-        await state.set_state(ApplicantStates.main_menu)
+        await _show_confirm_requests_list(
+            callback_query.message,
+            callback_query.from_user.id,
+            state,
+            user_service,
+            task_service,
+        )
 
     except Exception as e:
         await callback_query.message.answer(
