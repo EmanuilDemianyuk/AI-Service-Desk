@@ -9,6 +9,7 @@ from app.exceptions.exceptions import (
     AIServiceError,
     NotionServiceError,
     TelegramServiceError,
+    NoExecutorError,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "AIServiceError",
     "NotionServiceError",
     "TelegramServiceError",
+    "NoExecutorError",
 ]

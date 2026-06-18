@@ -17,6 +17,7 @@ from app.bot.keyboards import (
     get_task_actions_keyboard,
 )
 from app.services import UserService, TaskService, AIService
+from app.exceptions import NoExecutorError
 
 router = Router()
 
@@ -57,7 +58,16 @@ async def create_request_description(
         await message.answer("⏳ Класифікація вашого запиту... Будь ласка, зачекайте.")
         classification = await ai_service.classify_ticket(message.text)
 
-        executor = await user_service.get_executor_for_type(classification.type.value)
+        try:
+            executor = await user_service.get_executor_for_type(classification.type.value)
+        except NoExecutorError:
+            await message.answer(
+                "На жаль, наразі відсутній виконавець, який може обробити цей тип запиту.\n"
+                "Будь ласка, зверніться до адміністратора або повторіть спробу пізніше.",
+                reply_markup=get_applicant_main_menu(),
+            )
+            await state.set_state(ApplicantStates.main_menu)
+            return
 
         # DB commit + Notion sync handled inside task_service.create_task
         task = await task_service.create_task(

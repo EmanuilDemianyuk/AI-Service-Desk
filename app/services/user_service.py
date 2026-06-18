@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database.models import User, UserRole, ExecutorType
 from app.database.repositories import UserRepository
-from app.exceptions import NotFoundError, ValidationError
+from app.exceptions import NotFoundError, ValidationError, NoExecutorError
 from app.schemas.schemas import UserUpdate
 
 
@@ -89,14 +89,18 @@ class UserService:
         return user
 
     async def get_executor_for_type(self, task_type: str) -> User:
-        """Return executor whose type matches the task type (SYSTEM→SYSADMIN, LOCAL→MASTER)."""
+        """Return executor whose type matches the task type (SYSTEM→SYSADMIN, LOCAL→MASTER).
+
+        Raises NoExecutorError if no executor of the required type exists.
+        No fallback — executor selection is strict per business rules.
+        """
         desired = ExecutorType.SYSADMIN if task_type == "SYSTEM" else ExecutorType.MASTER
         executors = await self.repository.get_executors_by_type(desired)
         if not executors:
-            # fallback: any executor
-            executors = await self.repository.get_all_executors()
-        if not executors:
-            raise NotFoundError("No executors available")
+            raise NoExecutorError(
+                f"На жаль, наразі відсутній виконавець типу {desired.value}, "
+                f"який може обробити цей тип запиту."
+            )
         return executors[0]
 
     async def update_user_fields(self, user_id: int, data: UserUpdate) -> User:

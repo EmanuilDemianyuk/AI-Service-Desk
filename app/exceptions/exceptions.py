@@ -56,3 +56,9 @@ class DatabaseError(AppException):
     """Database error exception."""
 
     pass
+
+
+class NoExecutorError(AppException):
+    """No executor of the required type is available."""
+
+    pass

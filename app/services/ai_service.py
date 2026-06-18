@@ -12,11 +12,10 @@ from app.exceptions import AIServiceError
 class AIClassificationResponse(BaseModel):
     """AI classification response."""
 
-    title: str = Field(..., description="Task title")
-    description: str = Field(..., description="Task description")
+    title: str = Field(..., description="Task title (Ukrainian)")
+    description: str = Field(..., description="Task description (Ukrainian)")
     type: TaskType = Field(..., description="Task type (SYSTEM or LOCAL)")
     priority: TaskPriority = Field(..., description="Task priority")
-    executor: str = Field(..., description="Executor name (SysAdmin or Caretaker)")
 
 
 class AIService:
@@ -54,8 +53,9 @@ class AIService:
                             {
                                 "role": "system",
                                 "content": (
-                                    "You are a helpdesk ticket classifier. "
-                                    "Respond only with valid JSON."
+                                    "Ти — класифікатор заявок служби підтримки. "
+                                    "Завжди відповідай виключно українською мовою. "
+                                    "Відповідай тільки валідним JSON."
                                 ),
                             },
                             {
@@ -88,31 +88,14 @@ class AIService:
                         f"Model returned invalid JSON: {content}"
                     ) from e
 
-                task_type = classification_data.get(
-                    "type",
-                    "SYSTEM",
-                ).upper()
-
-                priority = classification_data.get(
-                    "priority",
-                    "MEDIUM",
-                ).upper()
+                task_type = classification_data.get("type", "SYSTEM").upper()
+                priority = classification_data.get("priority", "MEDIUM").upper()
 
                 return AIClassificationResponse(
-                    title=classification_data.get(
-                        "title",
-                        "Untitled ticket",
-                    ),
-                    description=classification_data.get(
-                        "description",
-                        description,
-                    ),
+                    title=classification_data.get("title", "Без назви"),
+                    description=classification_data.get("description", description),
                     type=TaskType[task_type],
                     priority=TaskPriority[priority],
-                    executor=classification_data.get(
-                        "executor",
-                        "SysAdmin",
-                    ),
                 )
 
         except httpx.HTTPStatusError as e:
@@ -120,6 +103,9 @@ class AIService:
                 f"OpenRouter API error: "
                 f"{e.response.status_code} - {e.response.text}"
             ) from e
+
+        except AIServiceError:
+            raise
 
         except Exception as e:
             raise AIServiceError(
@@ -129,45 +115,40 @@ class AIService:
     def _build_prompt(self, description: str) -> str:
         """Build prompt for AI classification."""
 
-        return f"""
-Classify the following helpdesk ticket and respond with JSON.
+        return f"""Класифікуй наступну заявку служби підтримки та поверни JSON.
 
-Ticket Description:
+Опис заявки:
 {description}
 
-Return ONLY a JSON object with this structure:
+Поверни ТІЛЬКИ JSON-об'єкт такої структури:
 
 {{
-    "title": "Brief title of the issue",
-    "description": "Detailed description of the issue",
-    "type": "SYSTEM or LOCAL",
-    "priority": "LOW, MEDIUM, or HIGH",
-    "executor": "SysAdmin or Caretaker"
+    "title": "Коротка назва проблеми українською мовою",
+    "description": "Детальний опис проблеми українською мовою",
+    "type": "SYSTEM або LOCAL",
+    "priority": "LOW, MEDIUM або HIGH"
 }}
 
-Rules:
+Правила визначення типу:
 
 - SYSTEM:
-  Computers, printers, internet, Wi-Fi, network,
-  software, servers, email, IT equipment.
-  Executor: SysAdmin
+  Комп'ютери, принтери, інтернет, Wi-Fi, мережа,
+  програмне забезпечення, сервери, електронна пошта, IT-обладнання.
 
 - LOCAL:
-  Furniture, doors, windows, lighting,
-  plumbing, office infrastructure,
-  maintenance issues.
-  Executor: Caretaker
+  Меблі, двері, вікна, освітлення,
+  сантехніка, офісна інфраструктура,
+  господарські питання.
 
-- HIGH:
-  Work stopped, critical system unavailable,
-  many users affected.
+Правила визначення пріоритету:
 
-- MEDIUM:
-  Work degraded but possible.
+- HIGH: Робота зупинена, критична система недоступна, постраждало багато користувачів.
+- MEDIUM: Робота ускладнена, але можлива.
+- LOW: Незначні незручності.
 
-- LOW:
-  Minor inconvenience.
-
-Respond ONLY with valid JSON.
+Важливо:
+- Повертай ТІЛЬКИ категорії SYSTEM або LOCAL — інші категорії неприпустимі.
+- Текст полів title та description — виключно українською мовою.
+- НЕ визначай виконавця — це виконує серверна логіка.
+- Відповідай ТІЛЬКИ валідним JSON.
 """
-
