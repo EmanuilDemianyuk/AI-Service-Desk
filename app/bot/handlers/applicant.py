@@ -26,7 +26,16 @@ async def create_request_start(message: Message, state: FSMContext) -> None:
     await state.set_state(ApplicantStates.request_description)
     await message.answer(
         "📝 Опишіть вашу проблему:\n\nБудь ласка, надайте детальний опис проблеми.",
+        reply_markup=get_applicant_detail_nav_keyboard(),
     )
+
+
+@router.message(ApplicantStates.request_description, F.text == "⬅️ Назад")
+async def cancel_create_request(message: Message, state: FSMContext) -> None:
+    """Cancel request creation and return to main menu."""
+    await state.clear()
+    await message.answer("🏠 Головне меню", reply_markup=get_applicant_main_menu())
+    await state.set_state(ApplicantStates.main_menu)
 
 
 @router.message(ApplicantStates.request_description)
