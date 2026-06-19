@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import Task, TaskStatus
+from app.database.models import Task, TaskStatus, TaskType
 from app.database.repositories.base import BaseRepository
 
 
@@ -77,6 +77,15 @@ class TaskRepository(BaseRepository):
         """Get all NEW tasks."""
         result = await self.session.execute(
             select(Task).where(Task.status == TaskStatus.NEW)
+        )
+        return result.scalars().all()
+
+    async def get_new_tasks_for_executor_type(self, task_type: TaskType) -> list[Task]:
+        """Get NEW tasks filtered by task type (SYSTEM for SYSADMIN, LOCAL for MASTER)."""
+        result = await self.session.execute(
+            select(Task).where(
+                (Task.status == TaskStatus.NEW) & (Task.type == task_type)
+            )
         )
         return result.scalars().all()
 

@@ -22,7 +22,8 @@ from app.bot.keyboards import (
     PRIORITY_TEXT,
     TYPE_TEXT
 )
-from app.database.models import TaskStatus
+from app.database.models import TaskStatus, TaskType
+from app.database.models.user import ExecutorType
 from app.services import UserService, TaskService
 
 router = Router()
@@ -98,16 +99,38 @@ async def _show_complete_task_list(
     await state.set_state(ExecutorStates.complete_task)
 
 
+_EXECUTOR_TYPE_TO_TASK_TYPE: dict[ExecutorType, TaskType] = {
+    ExecutorType.SYSADMIN: TaskType.SYSTEM,
+    ExecutorType.MASTER: TaskType.LOCAL,
+}
+
+
 async def _show_new_tasks(
     target: Message,
     state: FSMContext,
+    telegram_id: int,
+    user_service: UserService,
     task_service: TaskService,
 ) -> None:
-    """Fetch NEW tasks and render the new-tasks list screen."""
-    tasks = await task_service.get_new_tasks()
+    """Fetch NEW tasks for the executor's specialisation and render the list screen."""
+    user = await user_service.get_user_by_telegram_id(telegram_id)
+    if not user:
+        await target.answer("❌ Користувач не знайдений")
+        return
+
+    task_type = _EXECUTOR_TYPE_TO_TASK_TYPE.get(user.type)  # type: ignore[arg-type]
+    if task_type is None:
+        await target.answer(
+            "📭 Нових завдань для вас немає.",
+            reply_markup=get_new_tasks_nav_keyboard(),
+        )
+        await state.set_state(ExecutorStates.new_tasks)
+        return
+
+    tasks = await task_service.get_new_tasks_for_executor_type(task_type)
     if not tasks:
         await target.answer(
-            "📭 Нових завдань немає.",
+            "📭 Нових завдань для вас немає.",
             reply_markup=get_new_tasks_nav_keyboard(),
         )
         await state.set_state(ExecutorStates.new_tasks)
@@ -127,10 +150,11 @@ async def _show_new_tasks(
 async def new_tasks(
     message: Message,
     state: FSMContext,
+    user_service: UserService,
     task_service: TaskService,
 ) -> None:
     """Показати нові завдання."""
-    await _show_new_tasks(message, state, task_service)
+    await _show_new_tasks(message, state, message.from_user.id, user_service, task_service)
 
 
 @router.message(ExecutorStates.new_tasks, F.text == "🏠 Головне меню")
@@ -189,10 +213,11 @@ async def view_new_task_callback(
 async def new_task_detail_go_back(
     message: Message,
     state: FSMContext,
+    user_service: UserService,
     task_service: TaskService,
 ) -> None:
     """Return to new-tasks list from task-detail screen."""
-    await _show_new_tasks(message, state, task_service)
+    await _show_new_tasks(message, state, message.from_user.id, user_service, task_service)
 
 
 @router.callback_query(ExecutorStates.new_task_detail, F.data.startswith("accept_task_"))

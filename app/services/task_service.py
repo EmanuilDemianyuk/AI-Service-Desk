@@ -126,6 +126,10 @@ class TaskService:
         """Get all NEW tasks."""
         return await self.task_repository.get_new_tasks()
 
+    async def get_new_tasks_for_executor_type(self, task_type: TaskType) -> list[Task]:
+        """Get NEW tasks filtered by task type for a specific executor specialisation."""
+        return await self.task_repository.get_new_tasks_for_executor_type(task_type)
+
     async def get_executor_tasks(self, executor_id: int) -> list[Task]:
         """Get IN_PROGRESS and WAITING_EXECUTOR tasks for executor."""
         return await self.task_repository.get_executor_in_progress_tasks(executor_id)
