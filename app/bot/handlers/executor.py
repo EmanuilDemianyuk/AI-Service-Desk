@@ -18,6 +18,9 @@ from app.bot.keyboards import (
     get_new_tasks_nav_keyboard,
     get_accept_task_keyboard,
     STATUS_EMOJI,
+    STATUS_TEXT,
+    PRIORITY_TEXT,
+    TYPE_TEXT
 )
 from app.database.models import TaskStatus
 from app.services import UserService, TaskService
@@ -157,9 +160,9 @@ async def view_new_task_callback(
             f"📋 Завдання #{task.id}\n\n"
             f"📌 {task.title}\n"
             f"📝 {task.description or '—'}\n\n"
-            f"🚦 Статус: {emoji} {task.status.value}\n"
-            f"⚡ Пріоритет: {task.priority.value}\n"
-            f"🔧 Тип: {task.type.value}\n\n"
+            f"🚦 Статус: {emoji} {STATUS_TEXT.get(task.status, '—')}\n"
+            f"⚡ Пріоритет: {PRIORITY_TEXT.get(task.priority, '—')}\n"
+            f"🔧 Тип: {TYPE_TEXT.get(task.type, '—')}\n\n"
             f"👤 Заявник: {applicant_name}\n"
             f"📅 Створено: {created}\n"
         )
@@ -262,9 +265,9 @@ async def view_my_task_callback(
             f"📋 Завдання #{task.id}\n\n"
             f"📌 {task.title}\n"
             f"📝 {task.description or '—'}\n\n"
-            f"Статус: {emoji} {task.status.value}\n"
-            f"Пріоритет: {task.priority.value}\n"
-            f"Тип: {task.type.value}\n"
+            f"Статус: {emoji} {STATUS_TEXT.get(task.status, '—')}\n"
+            f"Пріоритет: {PRIORITY_TEXT.get(task.priority, '—')}\n"
+            f"Тип: {TYPE_TEXT.get(task.type, '—')}\n"
         )
         if task.feedback:
             detail += f"\n💬 Відгук: {task.feedback}"
@@ -339,9 +342,9 @@ async def complete_task_callback(
             f"📋 Завдання #{task.id}\n\n"
             f"📌 {task.title}\n"
             f"📝 {task.description or '—'}\n\n"
-            f"Статус: {emoji} {task.status.value}\n"
-            f"Пріоритет: {task.priority.value}\n"
-            f"Тип: {task.type.value}\n"
+            f"Статус: {emoji} {STATUS_TEXT.get(task.status, '—')}\n"
+            f"Пріоритет: {PRIORITY_TEXT.get(task.priority, '—')}\n"
+            f"Тип: {TYPE_TEXT.get(task.type, '—')}\n"
         )
 
         await callback_query.message.answer(

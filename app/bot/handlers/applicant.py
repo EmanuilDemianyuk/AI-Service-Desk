@@ -15,9 +15,14 @@ from app.bot.keyboards import (
     get_task_confirm_keyboard,
     get_confirmation_keyboard,
     get_task_actions_keyboard,
+    STATUS_EMOJI,
+    STATUS_TEXT,
+    PRIORITY_TEXT,
+    TYPE_TEXT,
 )
 from app.services import UserService, TaskService, AIService
 from app.exceptions import NoExecutorError
+
 
 router = Router()
 
@@ -82,12 +87,12 @@ async def create_request_description(
         response_text = (
             f"✅ Запит #{task.id} створено!\n\n"
             f"📋 Деталі:\n"
-            f"• Тип: {classification.type.value}\n"
-            f"• Пріоритет: {classification.priority.value}\n"
+            f"• Тип: {TYPE_TEXT.get(classification.type.value, 'Невідомо')}\n"
+            f"• Пріоритет: {PRIORITY_TEXT.get(classification.priority.value, 'Невідомо')}\n"
             f"• Виконавець: {executor.full_name}\n"
             f"• Назва: {classification.title}\n"
             f"• Опис: {classification.description}\n\n"
-            f"Статус: NEW\n"
+            f"Статус: Новий\n"
             f"Виконавець зв'яжеться з вами найближчим часом."
         )
         await message.answer(response_text, reply_markup=get_applicant_main_menu())
@@ -170,19 +175,15 @@ async def view_request_callback(
         created = task.created_at.strftime("%Y-%m-%d %H:%M")
         closed = task.closed_at.strftime("%Y-%m-%d %H:%M") if task.closed_at else "—"
 
-        STATUS_EMOJI = {
-            "NEW": "🔵", "IN_PROGRESS": "🟡", "WAITING_APPLICANT": "🟠",
-            "WAITING_EXECUTOR": "🟣", "DONE": "🟢", "CANCELLED": "🔴",
-        }
         emoji = STATUS_EMOJI.get(task.status.value, "⚪")
 
         detail = (
             f"📋 Запит #{task.id}\n\n"
             f"📌 {task.title}\n"
             f"📝 {task.description or '—'}\n\n"
-            f"🚦 Статус: {emoji} {task.status.value}\n"
-            f"⚡ Пріоритет: {task.priority.value}\n"
-            f"🔧 Тип: {task.type.value}\n\n"
+            f"🚦 Статус: {emoji} {STATUS_TEXT.get(task.status.value, "Невідомо")}\n"
+            f"⚡ Пріоритет: {PRIORITY_TEXT.get(task.priority.value, 'Невідомо')}\n"
+            f"🔧 Тип: {TYPE_TEXT.get(task.type.value, 'Невідомо')}\n\n"
             f"👤 Заявник: {applicant_name}\n"
             f"🛠  Виконавець: {executor_name}\n\n"
             f"📅 Створено: {created}\n"
@@ -283,6 +284,7 @@ async def wait_view_task_callback(
         executor_name = task.executor.full_name if task.executor else "—"
         applicant_name = task.applicant.full_name if task.applicant else "—"
         closed = task.closed_at.strftime("%Y-%m-%d %H:%M") if task.closed_at else "—"
+        emoji = STATUS_EMOJI.get(task.status.value, "🟠")
 
         detail = (
             f"📋 Запит #{task.id}\n\n"
@@ -290,8 +292,8 @@ async def wait_view_task_callback(
             f"📝 {task.description or '—'}\n\n"
             f"👤 Заявник: {applicant_name}\n"
             f"🔧 Виконавець: {executor_name}\n"
-            f"Статус: 🟠 {task.status.value}\n"
-            f"Пріоритет: {task.priority.value}\n\n"
+            f"Статус: {emoji} {STATUS_TEXT.get(task.status.value, 'Невідомо')}\n"
+            f"Пріоритет: {PRIORITY_TEXT.get(task.priority.value, 'Невідомо')}\n\n"
             f"💬 Коментар виконавця: {task.feedback or '—'}\n"
             f"📅 Дата завершення: {closed}\n"
         )

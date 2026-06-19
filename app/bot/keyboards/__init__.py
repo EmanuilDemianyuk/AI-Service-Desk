@@ -21,7 +21,6 @@ from app.bot.keyboards.executor import (
     get_confirm_complete_keyboard,
     get_new_tasks_nav_keyboard,
     get_accept_task_keyboard,
-    STATUS_EMOJI,
 )
 from app.bot.keyboards.admin import (
     get_admin_main_menu,
@@ -34,6 +33,13 @@ from app.bot.keyboards.admin import (
     get_create_role_keyboard,
     get_executor_type_keyboard,
     get_setrole_executor_type_keyboard,
+)
+
+from app.bot.keyboards.localizer import (
+    STATUS_EMOJI,
+    STATUS_TEXT,
+    PRIORITY_TEXT,
+    TYPE_TEXT
 )
 
 __all__ = [
@@ -68,3 +74,4 @@ __all__ = [
     "get_executor_type_keyboard",
     "get_setrole_executor_type_keyboard",
 ]
+

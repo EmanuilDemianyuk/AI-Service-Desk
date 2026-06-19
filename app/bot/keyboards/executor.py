@@ -1,16 +1,7 @@
 """Executor keyboards."""
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from app.database.models import TaskStatus
-
-STATUS_EMOJI: dict = {
-    TaskStatus.NEW: "🔵",
-    TaskStatus.IN_PROGRESS: "🟡",
-    TaskStatus.WAITING_APPLICANT: "🟠",
-    TaskStatus.WAITING_EXECUTOR: "🟣",
-    TaskStatus.DONE: "🟢",
-    TaskStatus.CANCELLED: "🔴",
-}
+from app.bot.keyboards.localizer import STATUS_EMOJI
 
 
 def get_executor_main_menu() -> ReplyKeyboardMarkup:

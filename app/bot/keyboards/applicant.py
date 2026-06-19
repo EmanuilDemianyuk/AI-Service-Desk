@@ -1,7 +1,7 @@
 """Applicant keyboards."""
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-
+from app.bot.keyboards.localizer import STATUS_EMOJI
 
 def get_applicant_main_menu() -> ReplyKeyboardMarkup:
     """Get applicant main menu keyboard."""
@@ -34,14 +34,6 @@ def get_applicant_detail_nav_keyboard() -> ReplyKeyboardMarkup:
 
 def get_my_requests_keyboard(tasks: list) -> InlineKeyboardMarkup:
     """InlineKeyboard listing all user requests with status emoji and title."""
-    STATUS_EMOJI = {
-        "NEW": "🔵",
-        "IN_PROGRESS": "🟡",
-        "WAITING_APPLICANT": "🟠",
-        "WAITING_EXECUTOR": "🟣",
-        "DONE": "🟢",
-        "CANCELLED": "🔴",
-    }
     buttons = [
         [InlineKeyboardButton(
             text=f"{STATUS_EMOJI.get(task.status.value, '⚪')} {task.title}",
