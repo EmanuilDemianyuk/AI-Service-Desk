@@ -9,7 +9,7 @@ This document provides step-by-step instructions to setup and run the HelpDesk T
 - Docker and Docker Compose (optional, for containerized setup)
 - Telegram Bot Token (from BotFather)
 - OpenRouter API Key (for AI classification)
-- Notion Token and Database ID (optional, for Notion integration)
+- Notion Token and Database ID (optional)
 
 ## Installation
 
@@ -18,7 +18,7 @@ This document provides step-by-step instructions to setup and run the HelpDesk T
 #### Step 1: Clone and Navigate to Project
 
 ```bash
-cd "c:/Users/SSHarp/Desktop/Service Desk Agent/service-desk-bot"
+cd service-desk-bot
 ```
 
 #### Step 2: Configure Environment Variables
@@ -33,9 +33,10 @@ Edit `.env` with your credentials:
 
 ```env
 BOT_TOKEN=your_telegram_bot_token
+SUPERADMIN_TELEGRAM_ID=123456789
 OPENROUTER_API_KEY=your_openrouter_api_key
-NOTION_TOKEN=your_notion_token
-NOTION_DATABASE_ID=your_notion_database_id
+NOTION_TOKEN=your_notion_token          # optional
+NOTION_DATABASE_ID=your_database_id     # optional
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 POSTGRES_DB=helpdesk
@@ -50,12 +51,6 @@ ENVIRONMENT=production
 ```bash
 docker-compose up -d
 ```
-
-This will:
-
-- Start PostgreSQL database
-- Build and start the FastAPI application
-- Run the bot in polling mode
 
 #### Step 4: Check Status
 
@@ -78,9 +73,9 @@ docker-compose down
 
 ```bash
 python -m venv venv
-source venv/Scripts/activate  # On Windows
+venv\Scripts\activate      # Windows
 # or
-source venv/bin/activate  # On macOS/Linux
+source venv/bin/activate   # macOS/Linux
 ```
 
 #### Step 2: Install Dependencies
@@ -95,8 +90,6 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your credentials
 ```
-
-For local PostgreSQL, ensure it's running on localhost:5432
 
 #### Step 4: Run Database Migrations
 
@@ -122,46 +115,68 @@ python app/bot_runner.py
 
 ## Configuration Details
 
-### Telegram Bot Token
+### Required Variables
 
-1. Open Telegram and search for [@BotFather](https://t.me/botfather)
-2. Send `/start` command
-3. Send `/newbot` to create a new bot
-4. Follow instructions to get your token
-5. Copy token to `.env` file as `BOT_TOKEN`
+| Variable | Description |
+|---|---|
+| `BOT_TOKEN` | Telegram bot token from [@BotFather](https://t.me/botfather) |
+| `SUPERADMIN_TELEGRAM_ID` | Numeric Telegram user ID. The first `/start` from this account grants `ADMIN` role automatically. |
+| `POSTGRES_HOST` | PostgreSQL host (default: `localhost`) |
+| `POSTGRES_PORT` | PostgreSQL port (default: `5432`) |
+| `POSTGRES_DB` | Database name (default: `helpdesk`) |
+| `POSTGRES_USER` | Database user (default: `helpdesk_user`) |
+| `POSTGRES_PASSWORD` | Database password |
 
-### OpenRouter API Key
+### Optional Variables
 
-1. Visit [OpenRouter](https://openrouter.ai)
-2. Sign up or log in
-3. Go to API Keys section
-4. Create new API key
-5. Copy key to `.env` file as `OPENROUTER_API_KEY`
+| Variable | Description |
+|---|---|
+| `OPENROUTER_API_KEY` | AI classification key. If absent, `/classify_ticket` raises `AIServiceError`. |
+| `NOTION_TOKEN` | Notion integration token. If absent, all Notion operations silently no-op. |
+| `NOTION_DATABASE_ID` | Target Notion database. Required together with `NOTION_TOKEN`. |
+| `DEBUG` | `true` / `false` (default: `false`) |
+| `ENVIRONMENT` | `development` / `production` (default: `development`) |
 
-### Notion Integration (Optional)
+### Getting Credentials
 
-1. Go to [Notion Integrations](https://www.notion.so/my-integrations)
-2. Create a new integration
-3. Copy the token and set as `NOTION_TOKEN`
-4. Create a database in Notion with the following columns:
-   - Task ID (Number)
-   - Title (Text)
-   - Description (Text)
-   - Type (Select: SYSTEM, LOCAL)
-   - Priority (Select: LOW, MEDIUM, HIGH)
-   - Status (Select: NEW, IN_PROGRESS, WAITING_APPLICANT, WAITING_EXECUTOR, DONE, CANCELLED)
-   - Applicant (Text)
-   - Executor (Text)
-   - Feedback (Text)
-   - Created At (Date)
-   - Closed At (Date)
-5. Copy database ID and set as `NOTION_DATABASE_ID`
+**Telegram Bot Token**:
+1. Open Telegram → [@BotFather](https://t.me/botfather)
+2. Send `/newbot`, follow instructions
+3. Copy the token to `BOT_TOKEN`
+
+**Your Telegram ID** (for `SUPERADMIN_TELEGRAM_ID`):
+- Send any message to [@userinfobot](https://t.me/userinfobot) — it replies with your numeric ID.
+
+**OpenRouter API Key**:
+1. Visit [openrouter.ai](https://openrouter.ai)
+2. Sign up → API Keys → Create key
+3. Copy to `OPENROUTER_API_KEY`
+
+**Notion Integration** (Optional):
+1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
+2. Create integration → copy token to `NOTION_TOKEN`
+3. Create a Notion database with these properties:
+
+| Property | Type | Values |
+|---|---|---|
+| Task ID | Title | — |
+| Title | Rich Text | — |
+| Description | Rich Text | — |
+| Type | Select | SYSTEM, LOCAL |
+| Priority | Select | LOW, MEDIUM, HIGH |
+| Status | Select | NEW, IN_PROGRESS, WAITING_APPLICANT, WAITING_EXECUTOR, DONE, CANCELLED |
+| Applicant | Rich Text | — |
+| Executor | Rich Text | — |
+| Feedback | Rich Text | — |
+| Created At | Date | — |
+
+4. Share the database with your integration, copy the database ID to `NOTION_DATABASE_ID`
 
 ---
 
 ## API Documentation
 
-Once the application is running, access API documentation:
+Once the application is running:
 
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
@@ -169,36 +184,82 @@ Once the application is running, access API documentation:
 
 ### Available Endpoints
 
-#### Health Check
+#### Health
 
-- `GET /health` - Check if service is running
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Service health check |
+
+#### Users
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/users` | Create user. EXECUTOR role requires `type=SYSADMIN\|MASTER` |
+| `GET` | `/api/users` | List all users |
+| `PATCH` | `/api/users/{user_id}` | Partial update. Changing from EXECUTOR clears `type` automatically |
 
 #### Tasks
 
-- `GET /api/tasks` - List all tasks
-- `GET /api/tasks/{task_id}` - Get task by ID
-- `POST /api/tasks` - Create new task
-- `PATCH /api/tasks/{task_id}/status` - Update task status
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/tasks` | List all tasks |
+| `GET` | `/api/tasks/{task_id}` | Get task by ID |
+| `POST` | `/api/tasks` | Create task |
+| `PATCH` | `/api/tasks/{task_id}/status` | Update task status, feedback, or executor |
+
+#### Notion
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/notion/sync` | Bulk-sync all DB tasks to Notion |
 
 ---
 
 ## Bot Usage
 
+### Roles
+
+| Role | Description |
+|---|---|
+| **Applicant** | Creates requests, monitors status, confirms completion |
+| **Executor** | Processes assigned tasks; specialization is either `SYSADMIN` (IT) or `MASTER` (facilities) |
+| **Admin** | Manages users and monitors all tasks. The first user matching `SUPERADMIN_TELEGRAM_ID` is auto-promoted on first `/start`. |
+
 ### For Applicants
 
-1. Start the bot: `/start`
-2. Main menu options:
-   - **Create Request** - Submit a new help request
-   - **My Requests** - View your submitted requests
-   - **Request Status** - Check status of a specific request
+1. Send `/start` → applicant main menu appears
+2. Menu options:
+   - **📝 Створити запит** — describe the problem; AI classifies it and assigns the right executor
+   - **📋 Мої запити** — browse all your submitted requests
+   - **✅ Підтвердити запит** — review and confirm/reject tasks marked as completed by the executor
 
 ### For Executors
 
-1. Start the bot: `/start`
-2. Main menu options:
-   - **New Tasks** - View and take new tasks
-   - **My Tasks** - View tasks in progress
-   - **Complete Task** - Mark task as complete with feedback
+Executor specialization determines which tasks appear:
+- `SYSADMIN` → sees only `SYSTEM` tasks (IT: computers, network, software)
+- `MASTER` → sees only `LOCAL` tasks (facilities: furniture, plumbing, lighting)
+
+1. Send `/start` → executor main menu appears
+2. Menu options:
+   - **🆕 Нові завдання** — view unassigned tasks matching your specialization; tap a task to review details before accepting
+   - **⏳ Мої завдання** — tasks currently assigned to you (IN_PROGRESS or WAITING_EXECUTOR)
+   - **✅ Позначити як завершене** — select an IN_PROGRESS task, add a comment, and send it for applicant confirmation
+
+### For Admins
+
+1. Send `/start` → admin main menu appears
+2. Menu options:
+   - **👥 Користувачі** — browse all users; tap a user to view details, change role, or delete
+   - **➕ Створити користувача** — 5-step form: first name → last name → Telegram ID → role → executor type (if EXECUTOR)
+   - **📋 Всі завдання** — overview of all tasks (up to 20 shown, with count of remaining)
+
+### Common Commands
+
+| Command | Description |
+|---|---|
+| `/start` | Open the role-specific main menu |
+| `/help` | Show available commands |
+| `/cancel` | Cancel the current multi-step operation |
 
 ---
 
@@ -208,32 +269,35 @@ Once the application is running, access API documentation:
 
 ```sql
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id          SERIAL PRIMARY KEY,
     telegram_id BIGINT UNIQUE NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
-    username VARCHAR(255),
-    role VARCHAR(50) NOT NULL DEFAULT 'APPLICANT',
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT NOW()
+    full_name   VARCHAR(255) NOT NULL,
+    username    VARCHAR(255),
+    role        VARCHAR(50) NOT NULL DEFAULT 'APPLICANT', -- APPLICANT | EXECUTOR | ADMIN
+    type        VARCHAR(50),                               -- SYSADMIN | MASTER | NULL
+    is_active   BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMP DEFAULT NOW()
 );
 ```
+
+> `type` is only set (and required) when `role = 'EXECUTOR'`.
 
 ### Tasks Table
 
 ```sql
 CREATE TABLE tasks (
-    id SERIAL PRIMARY KEY,
+    id             SERIAL PRIMARY KEY,
     notion_page_id VARCHAR(255),
-    applicant_id INTEGER NOT NULL REFERENCES users(id),
-    executor_id INTEGER REFERENCES users(id),
-    title TEXT NOT NULL,
-    description TEXT,
-    type VARCHAR(50) NOT NULL,
-    priority VARCHAR(50) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    feedback TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    closed_at TIMESTAMP
+    applicant_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    executor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    title          VARCHAR(255) NOT NULL,
+    description    TEXT,
+    type           VARCHAR(50) NOT NULL,  -- SYSTEM | LOCAL
+    priority       VARCHAR(50) NOT NULL,  -- LOW | MEDIUM | HIGH
+    status         VARCHAR(50) NOT NULL,  -- NEW | IN_PROGRESS | ... | DONE | CANCELLED
+    feedback       TEXT,
+    created_at     TIMESTAMP DEFAULT NOW(),
+    closed_at      TIMESTAMP
 );
 ```
 
@@ -243,13 +307,42 @@ CREATE TABLE tasks (
 
 ```
 NEW
-├─> IN_PROGRESS (Executor takes task)
-│   └─> WAITING_APPLICANT (Executor completes work)
-│       ├─> DONE (Applicant confirms)
-│       └─> IN_PROGRESS (Applicant rejects)
-│           └─> WAITING_EXECUTOR (Back to executor)
-│               └─> WAITING_APPLICANT (Executor completes again)
-└─> CANCELLED (Task cancelled)
+├─> IN_PROGRESS         (executor takes the task)
+│   └─> WAITING_APPLICANT (executor marks complete with feedback)
+│       ├─> DONE          (applicant confirms)
+│       └─> IN_PROGRESS   (applicant rejects — feedback cleared)
+└─> CANCELLED
+```
+
+---
+
+## Database Migrations
+
+```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Create a new migration
+alembic revision --autogenerate -m "description"
+
+# Rollback one step
+alembic downgrade -1
+```
+
+Current migrations in `migrations/versions/`:
+- `a6ac8a5bb63b_initial.py` — initial schema (users + tasks)
+- `b1c3e7f2a894_add_executor_type_to_users.py` — adds `type` column to `users`
+
+---
+
+## Code Quality
+
+```bash
+bash format.sh    # black + isort
+bash check.sh     # pytest + mypy + flake8 + formatting check
+mypy app/
+flake8 app/
+pytest --cov=app
 ```
 
 ---
@@ -258,141 +351,32 @@ NEW
 
 ### Bot not responding
 
-1. Check if token is correct: `BOT_TOKEN` in `.env`
-2. Check if bot is running: `docker-compose logs -f app`
-3. Verify Telegram account can access bot
+1. Verify `BOT_TOKEN` in `.env`
+2. Check logs: `docker-compose logs -f app`
+3. Confirm the Telegram account can reach the bot
 
 ### Database connection error
 
-1. Check PostgreSQL is running
-2. Verify connection details in `.env`
-3. Check firewall/security groups if using remote database
+1. Verify PostgreSQL is running
+2. Check `POSTGRES_*` values in `.env`
+3. Run `alembic upgrade head` to ensure schema is up to date
 
 ### AI classification failing
 
-1. Verify OpenRouter API key is valid
-2. Check rate limits on OpenRouter
-3. Check internet connectivity
+1. Verify `OPENROUTER_API_KEY` is valid
+2. Check OpenRouter rate limits and account balance
+3. Check internet connectivity from the container/server
 
-### Notion integration not working
+### Notion sync not working
 
-1. Verify Notion token is valid
-2. Verify database ID is correct
-3. Ensure database has required columns
+1. Verify `NOTION_TOKEN` and `NOTION_DATABASE_ID` are set
+2. Ensure the integration has access to the database in Notion
+3. Verify all required database properties exist (see Notion Integration section above)
+4. Check logs for `Notion sync failed` entries
+5. Use `POST /api/notion/sync` for a manual bulk sync
 
----
+### No executor available error
 
-## Development
-
-### Code Structure
-
-```
-app/
-├── ai/              # AI classification service
-├── bot/             # Telegram bot handlers
-├── database/        # Database models and repositories
-├── services/        # Business logic services
-├── api/             # FastAPI routes
-├── schemas/         # Pydantic models
-├── config/          # Settings and configuration
-├── core/            # Core utilities (logging)
-├── exceptions/      # Custom exceptions
-└── main.py          # FastAPI application entry point
-```
-
-### Running Tests
-
-```bash
-pytest
-```
-
-### Type Checking
-
-```bash
-mypy app/
-```
-
-### Linting
-
-```bash
-flake8 app/
-black app/
-```
-
----
-
-## Production Deployment
-
-### Using Gunicorn + Uvicorn
-
-```bash
-pip install gunicorn
-
-gunicorn app.main:app \
-  --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000
-```
-
-### Using Docker Compose with Nginx
-
-Create `nginx.conf`:
-
-```nginx
-upstream api {
-    server app:8000;
-}
-
-server {
-    listen 80;
-    server_name your_domain.com;
-
-    location / {
-        proxy_pass http://api;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-Update `docker-compose.yml` to include Nginx service.
-
-### Environment Variables
-
-For production, ensure:
-
-- `DEBUG=false`
-- `ENVIRONMENT=production`
-- Use strong `POSTGRES_PASSWORD`
-- Use valid bot token
-
----
-
-## Monitoring and Logging
-
-### View Logs
-
-```bash
-# Docker logs
-docker-compose logs -f app
-
-# Local logs
-tail -f logs/app.log
-```
-
-### Error Logs
-
-```bash
-tail -f logs/error.log
-```
-
----
-
-## Support
-
-For issues or questions, please check:
-
-1. This setup guide
-2. API documentation at `/docs`
-3. Database migration logs
-4. Application logs in `logs/` directory
+If a request fails with "наразі відсутній виконавець":
+1. An executor of the required type (`SYSADMIN` or `MASTER`) must be registered in the system
+2. Use the admin panel or `POST /api/users` to create one with the correct `type`

@@ -1,452 +1,152 @@
-# File Index and Project Manifest
+# Project File Index
 
-Complete listing of all 50+ files in the HelpDesk Bot project.
+## Documentation (`docs/`)
 
-## 📑 Quick Navigation
-
-### 📖 Documentation (9 files)
-
-1. [README.md](README.md) - Project overview and quick start guide
-2. [SETUP.md](SETUP.md) - Detailed setup instructions for local and Docker
-3. [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design patterns
-4. [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide
-5. [CONTRIBUTING.md](CONTRIBUTING.md) - Development contribution guidelines
-6. [CHANGELOG.md](CHANGELOG.md) - Version history and feature tracking
-7. [COMPLETION_SUMMARY.md](COMPLETION_SUMMARY.md) - Project implementation summary
-8. [INDEX.md](INDEX.md) - This file (project manifest)
-9. [LICENSE](LICENSE) - Project license
-
-### 🔧 Configuration Files (6 files)
-
-1. [requirements.txt](requirements.txt) - Python package dependencies
-2. [requirements-dev.txt](requirements-dev.txt) - Development dependencies
-3. [pyproject.toml](pyproject.toml) - Project metadata
-4. [.env.example](.env.example) - Environment variables template
-5. [.gitignore](.gitignore) - Git ignore patterns
-6. [.dockerignore](.dockerignore) - Docker ignore patterns
-
-### 🐳 Docker Files (2 files)
-
-1. [Dockerfile](Dockerfile) - Container image definition
-2. [docker-compose.yml](docker-compose.yml) - Multi-container orchestration
-
-### 📜 Script Files (4 files)
-
-1. [check.sh](check.sh) - Code quality and type checking
-2. [format.sh](format.sh) - Code formatting
-3. [run-bot.sh](run-bot.sh) - Bot startup script
-4. [MANIFEST.in](MANIFEST.in) - Distribution manifest
+| File | Purpose |
+|---|---|
+| [SETUP.md](SETUP.md) | Installation, configuration, bot usage |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design, patterns, data flow, API reference |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Production deployment options |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and code standards |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [INDEX.md](INDEX.md) | This file |
 
 ---
 
-## 📦 Application Structure (app/)
+## Application (`app/`)
 
-### Main Entry Points (2 files)
+### Entry Points
 
-- `app/main.py` - FastAPI application entry point
-- `app/bot_runner.py` - Telegram bot entry point
+| File | Purpose |
+|---|---|
+| `app/main.py` | FastAPI application — initializes DB schema on startup |
+| `app/bot_runner.py` | Bot polling loop — injects services via `dp.workflow_data` |
 
-### Database Layer (9 files)
+### Configuration (`app/config/`)
 
-```
-app/database/
-├── models/
-│   ├── user.py - User ORM model
-│   ├── task.py - Task ORM model
-│   └── __init__.py
-├── repositories/
-│   ├── base.py - Abstract base repository
-│   ├── user_repository.py - User data access
-│   ├── task_repository.py - Task data access
-│   └── __init__.py
-├── base.py - SQLAlchemy setup
-├── session.py - Database session management
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/config/settings.py` | Pydantic `BaseSettings` — all env vars with defaults |
 
-### Services Layer (6 files)
+### Core Utilities (`app/core/`)
 
-```
-app/services/
-├── user_service.py - User business logic
-├── task_service.py - Task business logic
-├── ai_service.py - AI classification
-├── notion_service.py - Notion integration
-├── dependencies.py - Service dependencies
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/core/logging.py` | `setup_logging()` and `get_logger()` |
 
-### Telegram Bot (10 files)
+### Database Layer (`app/database/`)
 
-```
-app/bot/
-├── handlers/
-│   ├── common.py - Shared handlers
-│   ├── applicant.py - Applicant workflow
-│   ├── executor.py - Executor workflow
-│   └── __init__.py
-├── keyboards/
-│   ├── applicant.py - Applicant keyboards
-│   ├── executor.py - Executor keyboards
-│   └── __init__.py
-├── states/
-│   ├── states.py - FSM state definitions
-│   └── __init__.py
-├── bot.py - Bot initialization
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/database/base.py` | SQLAlchemy `create_async_engine`, `AsyncSessionLocal`, `Base` |
+| `app/database/session.py` | `get_db_session` FastAPI dependency |
+| `app/database/models/user.py` | `User` ORM model, `UserRole` enum, `ExecutorType` enum |
+| `app/database/models/task.py` | `Task` ORM model, `TaskStatus`, `TaskType`, `TaskPriority` enums |
+| `app/database/repositories/base.py` | Abstract `BaseRepository` |
+| `app/database/repositories/user_repository.py` | User data access |
+| `app/database/repositories/task_repository.py` | Task data access |
 
-### API Layer (2 files)
+### Services Layer (`app/services/`)
 
-```
-app/api/
-├── routes.py - FastAPI routes
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/services/user_service.py` | User CRUD, role management, executor selection |
+| `app/services/task_service.py` | Task lifecycle + Notion sync side effects |
+| `app/services/ai_service.py` | OpenRouter ticket classification |
+| `app/services/notion_sync_service.py` | Centralised Notion sync (preferred) |
+| `app/services/notion_service.py` | Direct Notion CRUD (legacy) |
+| `app/services/dependencies.py` | Service factory functions for FastAPI and bot |
 
-### Configuration (2 files)
+### Exceptions (`app/exceptions/`)
 
-```
-app/config/
-├── settings.py - Pydantic settings
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/exceptions/exceptions.py` | Custom exception hierarchy (`AppException` and subclasses) |
 
-### Core Utilities (2 files)
+### Schemas (`app/schemas/`)
 
-```
-app/core/
-├── logging.py - Structured logging
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/schemas/schemas.py` | Pydantic request/response models for API |
 
-### Schemas (2 files)
+### API Layer (`app/api/`)
 
-```
-app/schemas/
-├── schemas.py - Pydantic models
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/api/routes.py` | FastAPI route handlers (users, tasks, Notion sync, health) |
 
-### Exception Handling (2 files)
+### Telegram Bot (`app/bot/`)
 
-```
-app/exceptions/
-├── exceptions.py - Custom exceptions
-└── __init__.py
-```
-
-### App Package Init (1 file)
-
-```
-app/
-└── __init__.py
-```
+| File | Purpose |
+|---|---|
+| `app/bot/bot.py` | Bot and dispatcher setup |
+| `app/bot/states/states.py` | FSM state groups + `FLOW_STATES` frozenset |
+| `app/bot/middleware/command_guard.py` | Intercepts commands during active flows |
+| `app/bot/middleware/nav_delete.py` | Deletes navigation messages from chat |
+| `app/bot/handlers/common.py` | `/start`, `/help`, `/cancel`, guard callbacks |
+| `app/bot/handlers/applicant.py` | Applicant workflow handlers |
+| `app/bot/handlers/executor.py` | Executor workflow handlers |
+| `app/bot/handlers/admin.py` | Admin panel handlers |
+| `app/bot/keyboards/applicant.py` | Applicant keyboard layouts |
+| `app/bot/keyboards/executor.py` | Executor keyboard layouts |
+| `app/bot/keyboards/admin.py` | Admin keyboard layouts |
+| `app/bot/keyboards/localizer.py` | Ukrainian display text for statuses, priorities, types |
 
 ---
 
-## 🗄️ Database Migrations (3 files)
+## Database Migrations (`migrations/`)
 
-```
-migrations/
-├── env.py - Alembic environment configuration
-├── alembic.ini - Alembic settings
-└── versions/
-    └── 001_initial.py - Initial schema migration
-```
+| File | Purpose |
+|---|---|
+| `migrations/env.py` | Alembic environment configuration |
+| `migrations/versions/a6ac8a5bb63b_initial.py` | Initial schema — `users` and `tasks` tables |
+| `migrations/versions/b1c3e7f2a894_add_executor_type_to_users.py` | Adds `type` column to `users` |
 
 ---
 
-## 📊 File Statistics
+## Scripts (`scripts/`)
 
-### Total Files: 57
-
-- Documentation: 9 files
-- Configuration: 6 files
-- Docker: 2 files
-- Scripts: 4 files
-- Application: 32 files
-- Migrations: 4 files
-
-### Code Organization
-
-```
-app/
-├── __init__.py (1)
-├── main.py (1)
-├── bot_runner.py (1)
-├── database/ (9)
-├── services/ (6)
-├── bot/ (10)
-├── api/ (2)
-├── config/ (2)
-├── core/ (2)
-├── schemas/ (2)
-├── exceptions/ (2)
-└── [Total: 38 files]
-
-migrations/ (4)
-
-[Total Application: 42 files]
-```
+| File | Purpose |
+|---|---|
+| `scripts/migrate_tasks_to_ukrainian.py` | One-off script to localise existing task titles/descriptions to Ukrainian |
 
 ---
 
-## 🔄 File Dependencies
+## Root Configuration
 
-### Main Application
-
-```
-main.py
-  └── api/routes.py
-      ├── config/settings.py
-      ├── database/session.py
-      └── schemas/schemas.py
-
-bot_runner.py
-  └── bot/bot.py
-      ├── bot/handlers/
-      │   ├── common.py
-      │   ├── applicant.py
-      │   └── executor.py
-      ├── bot/keyboards/
-      │   ├── applicant.py
-      │   └── executor.py
-      ├── bot/states/states.py
-      ├── services/
-      │   ├── user_service.py
-      │   ├── task_service.py
-      │   ├── ai_service.py
-      │   └── notion_service.py
-      └── database/
-          ├── session.py
-          └── repositories/
-              ├── user_repository.py
-              └── task_repository.py
-```
-
-### Services
-
-```
-services/
-  ├── user_service.py
-  │   └── database/repositories/user_repository.py
-  ├── task_service.py
-  │   └── database/repositories/task_repository.py
-  ├── ai_service.py
-  │   └── exceptions/exceptions.py
-  ├── notion_service.py
-  │   └── exceptions/exceptions.py
-  └── dependencies.py
-      └── services (all above)
-```
-
-### Database
-
-```
-database/
-  ├── base.py
-  │   ├── models/user.py
-  │   └── models/task.py
-  ├── session.py
-  │   └── config/settings.py
-  └── repositories/
-      ├── base.py
-      └── implementations
-          ├── user_repository.py
-          └── task_repository.py
-```
+| File | Purpose |
+|---|---|
+| `requirements.txt` | Production Python dependencies |
+| `pyproject.toml` | Project metadata and tool configuration |
+| `docker-compose.yml` | Multi-container orchestration |
+| `Dockerfile` | Container image definition |
+| `.env.example` | Environment variables template |
+| `.gitignore` | Git ignore patterns |
+| `.dockerignore` | Docker ignore patterns |
+| `alembic.ini` | Alembic configuration |
+| `format.sh` | Run `black` + `isort` |
+| `check.sh` | Run `pytest` + `mypy` + `flake8` + formatting check |
 
 ---
 
-## 🎯 Key Files by Responsibility
+## Reading Order
 
-### Telegram Bot Logic
+### First time
 
-- `bot/bot.py` - Bot setup and registration
-- `bot/handlers/common.py` - Command handlers
-- `bot/handlers/applicant.py` - Applicant workflow
-- `bot/handlers/executor.py` - Executor workflow
-- `bot/keyboards/applicant.py` - Applicant UI
-- `bot/keyboards/executor.py` - Executor UI
-- `bot/states/states.py` - FSM definitions
-- `bot_runner.py` - Bot startup
+1. [SETUP.md](SETUP.md) — installation and configuration
+2. [ARCHITECTURE.md](ARCHITECTURE.md) — system design overview
 
-### REST API
+### Understanding the code
 
-- `main.py` - FastAPI app setup
-- `api/routes.py` - Endpoint handlers
-- `schemas/schemas.py` - Data validation
+1. `app/config/settings.py` — available configuration
+2. `app/database/models/` — domain entities and enums
+3. `app/services/` — business logic
+4. `app/bot/states/states.py` — FSM structure
+5. `app/bot/handlers/` — user-facing flows
+6. `app/api/routes.py` — REST API
 
-### Data Access
+### Deploying
 
-- `database/models/user.py` - User entity
-- `database/models/task.py` - Task entity
-- `database/repositories/user_repository.py` - User DAO
-- `database/repositories/task_repository.py` - Task DAO
-- `database/base.py` - ORM setup
-- `database/session.py` - Session management
-
-### Business Logic
-
-- `services/user_service.py` - User operations
-- `services/task_service.py` - Task operations
-- `services/ai_service.py` - AI integration
-- `services/notion_service.py` - Notion sync
-- `services/dependencies.py` - Service setup
-
-### Infrastructure
-
-- `config/settings.py` - Configuration
-- `core/logging.py` - Structured logging
-- `exceptions/exceptions.py` - Error handling
-
-### Database
-
-- `migrations/001_initial.py` - Schema
-- `migrations/env.py` - Migration setup
-
----
-
-## 📝 Configuration Files Detail
-
-### requirements.txt
-
-Core dependencies including:
-
-- FastAPI, Uvicorn
-- aiogram, Telegram
-- SQLAlchemy, psycopg
-- Pydantic, python-dotenv
-- structlog, httpx, aiohttp
-
-### .env.example
-
-Environment variables template with:
-
-- Telegram bot token
-- OpenRouter API key
-- Notion integration credentials
-- PostgreSQL connection details
-- Application settings
-
-### pyproject.toml
-
-Project metadata with:
-
-- Python 3.13+ requirement
-- Package information
-- Build system configuration
-
----
-
-## 🚀 Startup Files
-
-### Docker
-
-1. [Dockerfile](Dockerfile) - Build production image
-2. [docker-compose.yml](docker-compose.yml) - Orchestrate services
-
-### Local
-
-1. [app/bot_runner.py](app/bot_runner.py) - Start bot
-2. [app/main.py](app/main.py) - Start API (via uvicorn)
-
-### Scripts
-
-1. [check.sh](check.sh) - Run quality checks
-2. [format.sh](format.sh) - Format code
-3. [run-bot.sh](run-bot.sh) - Bot startup
-
----
-
-## 📚 Reading Order (for Understanding Code)
-
-### First Time Setup
-
-1. [README.md](README.md) - Overview
-2. [SETUP.md](SETUP.md) - Installation
-3. [ARCHITECTURE.md](ARCHITECTURE.md) - Design
-
-### Understanding the System
-
-1. [app/config/settings.py](app/config/settings.py) - Configuration
-2. [app/database/models/user.py](app/database/models/user.py) - Data model
-3. [app/database/models/task.py](app/database/models/task.py) - Data model
-4. [app/services/user_service.py](app/services/user_service.py) - Business logic
-5. [app/services/task_service.py](app/services/task_service.py) - Business logic
-
-### Bot Implementation
-
-1. [app/bot/states/states.py](app/bot/states/states.py) - State machine
-2. [app/bot/keyboards/applicant.py](app/bot/keyboards/applicant.py) - UI
-3. [app/bot/handlers/applicant.py](app/bot/handlers/applicant.py) - Logic
-4. [app/bot/bot.py](app/bot/bot.py) - Setup
-
-### API Implementation
-
-1. [app/api/routes.py](app/api/routes.py) - Endpoints
-2. [app/main.py](app/main.py) - App setup
-
-### Deployment
-
-1. [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment options
-2. [Dockerfile](Dockerfile) - Container setup
-3. [docker-compose.yml](docker-compose.yml) - Orchestration
-
----
-
-## ✅ Project Completion Status
-
-**Phase 1 - Project Structure**: ✅ Complete
-
-- Requirements, pyproject.toml, Docker setup, .env configuration
-
-**Phase 2 - Database Layer**: ✅ Complete
-
-- Models, repositories, migrations
-
-**Phase 3 - Services**: ✅ Complete
-
-- User, Task, AI, Notion services
-
-**Phase 4 - Bot Implementation**: ✅ Complete
-
-- Handlers, keyboards, states, FSM
-
-**Phase 5 - REST API**: ✅ Complete
-
-- FastAPI routes and schemas
-
-**Phase 6 - AI Integration**: ✅ Complete
-
-- OpenRouter classification
-
-**Phase 7 - Notion Integration**: ✅ Complete
-
-- Task synchronization
-
-**Phase 8 - Logging & Error Handling**: ✅ Complete
-
-- Structured logging, custom exceptions
-
-**Phase 9 - Documentation**: ✅ Complete
-
-- README, SETUP, ARCHITECTURE, DEPLOYMENT, CONTRIBUTING
-
----
-
-## 🎉 Ready for Deployment
-
-All files are in place and the project is ready for:
-
-1. Local development
-2. Docker containerization
-3. Production deployment
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
-
----
-
-**Last Updated**: January 2024  
-**Status**: ✅ Production Ready
+1. [DEPLOYMENT.md](DEPLOYMENT.md)
+2. `docker-compose.yml`
+3. `migrations/versions/` — database schema history

@@ -6,38 +6,42 @@ This document describes the architecture and design patterns used in the HelpDes
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Telegram Users                       │
+│                    Telegram Users                        │
+│            (Applicant / Executor / Admin)                │
 └──────────────────────┬──────────────────────────────────┘
                        │
-                       │ (aiogram)
+                       │ (aiogram 3.x — polling)
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│         Telegram Bot (Polling/Webhook)                  │
+│         Telegram Bot                                     │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │  Handlers Layer (FSM-based)                      │   │
-│  │  ├─ Applicant Handlers                           │   │
-│  │  ├─ Executor Handlers                            │   │
-│  │  └─ Common Handlers                              │   │
+│  │  Middleware Layer                                 │   │
+│  │  ├─ CommandGuardMiddleware                        │   │
+│  │  └─ NavDeleteMiddleware                           │   │
+│  ├──────────────────────────────────────────────────┤   │
+│  │  Handlers Layer (FSM-based)                       │   │
+│  │  ├─ Common Handlers (/start, /help, /cancel)      │   │
+│  │  ├─ Applicant Handlers                            │   │
+│  │  ├─ Executor Handlers                             │   │
+│  │  └─ Admin Handlers                                │   │
 │  └──────────────────────────────────────────────────┘   │
 └──────────────────────┬──────────────────────────────────┘
                        │
         ┌──────────────┼──────────────┐
         │              │              │
         ▼              ▼              ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│   Services   │ │   Services   │ │   Services   │
-│              │ │              │ │              │
-│ UserService  │ │ TaskService  │ │ AIService    │
-│ TaskService  │ │ AIService    │ │ NotionService│
-│              │ │              │ │              │
-└──────────────┘ └──────────────┘ └──────────────┘
+┌──────────────┐ ┌──────────────────┐ ┌──────────────┐
+│ UserService  │ │   TaskService    │ │  AIService   │
+│              │ │  + Notion        │ │              │
+│              │ │  SyncService     │ │              │
+└──────────────┘ └──────────────────┘ └──────────────┘
         │              │              │
         └──────────────┼──────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────┐
-│         Repositories (Data Access Layer)                │
+│         Repositories (Data Access Layer)                 │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │  UserRepository      │  TaskRepository           │   │
+│  │  UserRepository      │  TaskRepository            │   │
 │  └──────────────────────────────────────────────────┘   │
 └──────────────────────┬──────────────────────────────────┘
                        │
@@ -46,14 +50,20 @@ This document describes the architecture and design patterns used in the HelpDes
         ▼              ▼              ▼
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
 │ PostgreSQL   │ │ OpenRouter   │ │    Notion    │
-│   Database   │ │   (AI API)   │ │    (CMS)     │
+│   Database   │ │   (AI API)   │ │   (mirror)   │
 └──────────────┘ └──────────────┘ └──────────────┘
 
 ┌──────────────────────────────────────────────────────────┐
 │         FastAPI REST API                                 │
-│  ├─ Health Check Endpoint                                │
-│  ├─ Task CRUD Endpoints                                  │
-│  └─ Swagger/ReDoc Documentation                          │
+│  ├─ GET  /health                                         │
+│  ├─ POST /api/users                                      │
+│  ├─ GET  /api/users                                      │
+│  ├─ PATCH /api/users/{id}                                │
+│  ├─ GET  /api/tasks                                      │
+│  ├─ GET  /api/tasks/{id}                                 │
+│  ├─ POST /api/tasks                                      │
+│  ├─ PATCH /api/tasks/{id}/status                         │
+│  └─ POST /api/notion/sync                                │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -68,18 +78,13 @@ This document describes the architecture and design patterns used in the HelpDes
 **Implementation**:
 
 ```python
-# In app/database/repositories/user_repository.py
+# app/database/repositories/user_repository.py
 class UserRepository(BaseRepository):
     async def get_by_telegram_id(self, telegram_id: int) -> User | None:
-        # Database access logic
-        pass
+        ...
 ```
 
-**Benefits**:
-
-- Decouples business logic from database operations
-- Enables easy testing with mock repositories
-- Centralized query logic
+**Benefits**: Decouples business logic from database, centralizes query logic.
 
 ---
 
@@ -90,21 +95,16 @@ class UserRepository(BaseRepository):
 **Implementation**:
 
 ```python
-# In app/services/user_service.py
+# app/services/user_service.py
 class UserService:
     def __init__(self, repository: UserRepository) -> None:
         self.repository = repository
 
     async def get_or_create_user(self, telegram_id: int, ...) -> User:
-        # Business logic
-        pass
+        ...
 ```
 
-**Benefits**:
-
-- Clear separation of concerns
-- Reusable business logic across handlers and API
-- Easy to test
+**Benefits**: Reusable business logic across bot handlers and API routes.
 
 ---
 
@@ -112,27 +112,8 @@ class UserService:
 
 **Purpose**: Manage service dependencies and enable loose coupling.
 
-**Implementation**:
-
-```python
-# In app/services/dependencies.py
-async def get_user_service(session: AsyncSession) -> UserService:
-    repository = UserRepository(session)
-    return UserService(repository)
-
-# In FastAPI routes
-@router.get("/tasks")
-async def get_tasks(
-    session: AsyncSession = Depends(get_db_session),
-):
-    pass
-```
-
-**Benefits**:
-
-- Easy to swap implementations (e.g., for testing)
-- Clear dependency requirements
-- Automatic lifecycle management
+- **Bot**: Services are injected via `dp.workflow_data` in `bot_runner.py` and accessed directly in handlers.
+- **FastAPI**: Routes use `Depends(get_db_session)` and construct services inline; `app/services/dependencies.py` provides factory functions.
 
 ---
 
@@ -140,44 +121,74 @@ async def get_tasks(
 
 **Purpose**: Manage bot conversation flow and state transitions.
 
-**Implementation**:
+Three state groups defined in `app/bot/states/states.py`:
 
 ```python
-# In app/bot/states/states.py
 class ApplicantStates(StatesGroup):
     main_menu = State()
     create_request = State()
-    request_description = State()
+    request_description = State()    # active flow — user is typing
+    my_requests = State()
+    request_status = State()
+    status_input = State()           # active flow
+    confirm_requests = State()
+    confirm_request_detail = State()
+    my_request_detail = State()
 
-# In handlers
-@router.message(ApplicantStates.main_menu, F.text == "📝 Create Request")
-async def create_request_start(message: Message, state: FSMContext):
-    await state.set_state(ApplicantStates.request_description)
+class ExecutorStates(StatesGroup):
+    main_menu = State()
+    new_tasks = State()
+    new_task_detail = State()
+    my_tasks = State()
+    task_in_progress = State()
+    complete_task = State()          # active flow
+    feedback_input = State()         # active flow — user is typing
+    task_confirmation = State()
+
+class AdminStates(StatesGroup):
+    main_menu = State()
+    user_list = State()
+    user_detail = State()
+    set_role_select_role = State()
+    set_role_executor_type = State()
+    confirm_delete_user = State()
+    create_user_first_name = State()  # active flow
+    create_user_last_name = State()   # active flow
+    create_user_telegram_id = State() # active flow
+    create_user_role = State()        # active flow
+    create_user_executor_type = State() # active flow
+    task_list = State()
 ```
 
-**Benefits**:
-
-- Prevents invalid state transitions
-- Clear flow logic
-- State data persistence
+`FLOW_STATES` is a `frozenset` of states where user is actively entering data — used by middleware to protect in-progress input.
 
 ---
 
-### 5. Clean Architecture
+### 5. Middleware Layer
 
-**Layers** (from innermost to outermost):
+Two middleware classes run on every incoming message.
 
-1. **Entities** - Domain models (User, Task, enums)
-2. **Use Cases** - Business logic (Services)
-3. **Interface Adapters** - Repositories, API routes, Bot handlers
-4. **External Interfaces** - Database, APIs, Telegram
+#### CommandGuardMiddleware (`app/bot/middleware/command_guard.py`)
 
-**Benefits**:
+Intercepts slash commands (`/start`, `/help`, etc.) while a user is inside an active multi-step flow (state is in `FLOW_STATES`). Shows an inline confirmation prompt instead of aborting the flow silently.
 
-- Independent of frameworks
-- Testable business logic
-- Easy to swap implementations
-- Clear data flow
+- `/cancel` bypasses the guard unconditionally.
+- Saves the pending command to FSM data; `guard_confirm` / `guard_cancel` callbacks in `common.py` handle the response.
+
+#### NavDeleteMiddleware (`app/bot/middleware/nav_delete.py`)
+
+Silently deletes ReplyKeyboard navigation button messages (e.g., «🏠 Головне меню», «⬅️ Назад») to keep the chat uncluttered. Messages in `FLOW_STATES` (user input) are never deleted.
+
+---
+
+### 6. Clean Architecture
+
+**Layers** (innermost to outermost):
+
+1. **Entities** — Domain models (`User`, `Task`, enums)
+2. **Use Cases** — Business logic (Services)
+3. **Interface Adapters** — Repositories, API routes, Bot handlers
+4. **External Interfaces** — Database, APIs, Telegram
 
 ---
 
@@ -186,146 +197,179 @@ async def create_request_start(message: Message, state: FSMContext):
 ### Task Creation Flow
 
 ```
-User sends message to bot
+User sends problem description (ApplicantStates.request_description)
     ↓
-Handler receives message → ApplicantStates.request_description
+UserService.get_user_by_telegram_id()  — resolve DB user
     ↓
-Handler calls UserService.get_user_by_telegram_id()
+AIService.classify_ticket(description)
     ↓
-UserService queries UserRepository
+OpenRouter API (qwen/qwen3-32b) — returns JSON
+    {title, description, type (SYSTEM|LOCAL), priority (LOW|MEDIUM|HIGH)}
     ↓
-Repository executes SQL query
+UserService.get_executor_for_type(task_type)
+    SYSTEM → ExecutorType.SYSADMIN
+    LOCAL  → ExecutorType.MASTER
+    Raises NoExecutorError if no executor of required type exists
     ↓
-User data returned to handler
+TaskService.create_task(...)
     ↓
-Handler calls AIService.classify_ticket()
+TaskRepository.create() + commit()    — DB is source of truth
     ↓
-AIService calls OpenRouter API
-    ↓
-AI classification returned (type, priority, executor)
-    ↓
-Handler calls TaskService.create_task()
-    ↓
-TaskService calls TaskRepository.create()
-    ↓
-Task saved to PostgreSQL database
-    ↓
-Handler calls NotionService.create_task_page()
-    ↓
-Notion page created (optional)
-    ↓
-Executor notified via bot
+NotionSyncService.create_task()       — non-blocking, errors logged only
     ↓
 Response sent to applicant
 ```
+
+> **Important**: The AI model never determines the executor. Executor assignment is
+> server-side business logic based on `task_type` → `ExecutorType` mapping.
+
+### Notion Sync Strategy
+
+`TaskService` manages Notion as a read-only mirror of the database:
+
+- Every successful DB commit is followed by a fire-and-forget Notion sync.
+- Notion errors are logged but **never** propagated — they do not roll back DB transactions.
+- Sync is handled by `NotionSyncService` (not `NotionService`). `NotionService` is a legacy class kept for backward compatibility.
+
+| DB operation | Notion operation |
+|---|---|
+| `create_task` | `create_task` (persists `page_id` back to DB) |
+| `take_task`, `complete_task`, `confirm_task`, `reject_task` | `update_task` |
+| `cancel_task` | `archive_task` |
+| `POST /api/notion/sync` | `sync_all_tasks` (bulk reconciliation) |
 
 ---
 
 ## Database Schema
 
-### ERD (Entity Relationship Diagram)
+### ERD
 
 ```
 Users Table
-┌─────────────────────────────┐
-│ id (PK)                     │
-│ telegram_id (UNIQUE)        │
-│ full_name                   │
-│ username                    │
-│ role (APPLICANT/EXECUTOR)   │
-│ is_active                   │
-│ created_at                  │
-└─────────────────────────────┘
+┌──────────────────────────────────┐
+│ id (PK)                          │
+│ telegram_id (UNIQUE, NOT NULL)   │
+│ full_name (NOT NULL)             │
+│ username                         │
+│ role (APPLICANT│EXECUTOR│ADMIN)  │
+│ type (SYSADMIN│MASTER│NULL)      │  ← only set for EXECUTOR role
+│ is_active                        │
+│ created_at                       │
+└──────────────────────────────────┘
           ▲         ▲
-          │         │
     (1:N) │         │ (1:N)
-          │         │
+          │ FK      │ FK
           │         │
 Tasks Table
-┌─────────────────────────────┐
-│ id (PK)                     │
-│ applicant_id (FK) ──────────┤
-│ executor_id (FK) ───────────┤
-│ title                       │
-│ description                 │
-│ type (SYSTEM/LOCAL)         │
-│ priority (LOW/MEDIUM/HIGH)  │
-│ status (NEW/IN_PROGRESS...)│
-│ feedback                    │
-│ notion_page_id              │
-│ created_at                  │
-│ closed_at                   │
-└─────────────────────────────┘
+┌──────────────────────────────────┐
+│ id (PK)                          │
+│ applicant_id (FK → users.id)     │
+│ executor_id  (FK → users.id)     │
+│ title (NOT NULL)                 │
+│ description                      │
+│ type (SYSTEM│LOCAL)              │
+│ priority (LOW│MEDIUM│HIGH)       │
+│ status                           │
+│ feedback                         │
+│ notion_page_id                   │
+│ created_at                       │
+│ closed_at                        │
+└──────────────────────────────────┘
+```
+
+### Enums
+
+| Enum | Values |
+|---|---|
+| `UserRole` | `APPLICANT`, `EXECUTOR`, `ADMIN` |
+| `ExecutorType` | `SYSADMIN`, `MASTER` — only valid for `EXECUTOR` role |
+| `TaskType` | `SYSTEM`, `LOCAL` |
+| `TaskPriority` | `LOW`, `MEDIUM`, `HIGH` |
+| `TaskStatus` | `NEW`, `IN_PROGRESS`, `WAITING_APPLICANT`, `WAITING_EXECUTOR`, `DONE`, `CANCELLED` |
+
+All enums extend both `str` and `enum.Enum` so they serialize to plain strings without conversion.
+
+### Task Lifecycle
+
+```
+NEW
+├─> IN_PROGRESS           (executor takes task via "🆕 Нові завдання")
+│   └─> WAITING_APPLICANT (executor marks complete with feedback)
+│       ├─> DONE          (applicant confirms)
+│       └─> IN_PROGRESS   (applicant rejects — feedback cleared)
+└─> CANCELLED             (task cancelled, Notion page archived)
 ```
 
 ---
 
 ## Service Responsibilities
 
-### UserService
+### UserService (`app/services/user_service.py`)
 
-- User creation and retrieval
-- Role management
-- Executor assignment
+- User creation, retrieval, update, deletion
+- Auto-assign `ADMIN` role to the user whose `telegram_id` matches `SUPERADMIN_TELEGRAM_ID`
+- `get_or_create_user` — upsert on first `/start`
+- `get_executor_for_type(task_type)` — strict executor selection by specialization; raises `NoExecutorError` if none available
+- `update_user_fields` — partial update with role/type consistency validation
 
-### TaskService
+### TaskService (`app/services/task_service.py`)
 
-- Task CRUD operations
-- Status transitions
-- Task lifecycle management
+- Full task CRUD and status transitions
+- DB is the single source of truth
+- Non-blocking Notion sync via `NotionSyncService` after every commit (errors logged, not raised)
+- `sync_all_to_notion()` — bulk reconciliation, persists new `notion_page_id`s back to DB
 
-### AIService
+### AIService (`app/services/ai_service.py`)
 
-- Ticket classification
-- Title and description generation
-- Priority determination
+- Calls OpenRouter (`qwen/qwen3-32b`) with `response_format: json_object`
+- Returns `AIClassificationResponse`: `{title, description, type, priority}` — all text in Ukrainian
+- Does **not** determine the executor; executor selection is a server responsibility
 
-### NotionService
+### NotionSyncService (`app/services/notion_sync_service.py`)
 
-- Notion page creation
-- Status synchronization
-- Feedback persistence
+- Central Notion integration used by `TaskService`
+- Gracefully no-ops when `NOTION_TOKEN` or `NOTION_DATABASE_ID` are absent (`enabled` property)
+- Methods: `create_task`, `update_task`, `archive_task`, `sync_task`, `sync_all_tasks`
+- `sync_all_tasks` paginates Notion, detects orphan pages, returns a `{created, updated, orphaned, errors}` summary
+
+### NotionService (`app/services/notion_service.py`)
+
+- Legacy direct-CRUD Notion client
+- Kept for backward compatibility; prefer `NotionSyncService` for new code
 
 ---
 
 ## API Routes
 
-### Health Check
+### Health
 
 ```
 GET /health
 Response: {"status": "healthy", "message": "Service is running"}
 ```
 
-### List Tasks
+### Users
 
 ```
-GET /api/tasks
-Response: {"items": [...], "total": N}
+POST   /api/users              — create user; EXECUTOR requires type=SYSADMIN|MASTER
+GET    /api/users              — list all users
+PATCH  /api/users/{user_id}   — partial update; changing from EXECUTOR clears type automatically
 ```
 
-### Get Task
+### Tasks
 
 ```
-GET /api/tasks/{task_id}
-Response: {TaskResponse}
+GET    /api/tasks              — list all tasks; Response: {items: [...], total: N}
+GET    /api/tasks/{task_id}    — get single task
+POST   /api/tasks              — create task
+PATCH  /api/tasks/{task_id}/status  — update status, feedback, executor_id
 ```
 
-### Create Task
+### Notion
 
 ```
-POST /api/tasks
-Body: {TaskCreate}
-Response: {TaskResponse}
-Status: 201 Created
-```
-
-### Update Task Status
-
-```
-PATCH /api/tasks/{task_id}/status
-Body: {TaskUpdate}
-Response: {TaskResponse}
+POST   /api/notion/sync        — bulk-sync all DB tasks to Notion
+                                 Response: {created, updated, orphaned, errors}
 ```
 
 ---
@@ -336,24 +380,26 @@ Response: {TaskResponse}
 
 ```
 Exception
-├─ AppException (Custom)
-│  ├─ ValidationError
-│  ├─ NotFoundError
-│  ├─ AuthenticationError
-│  ├─ AuthorizationError
-│  ├─ AIServiceError
-│  ├─ NotionServiceError
-│  ├─ TelegramServiceError
-│  └─ DatabaseError
+└─ AppException (base — carries .message and .code)
+   ├─ ValidationError
+   ├─ NotFoundError
+   ├─ AuthenticationError
+   ├─ AuthorizationError
+   ├─ AIServiceError
+   ├─ NotionServiceError
+   ├─ TelegramServiceError
+   ├─ DatabaseError
+   └─ NoExecutorError        — no executor of required type is registered
 ```
 
-### Error Responses
+FastAPI maps `AppException` → HTTP 400; `RequestValidationError` → HTTP 422.
+
+### Error Response Format
 
 ```json
 {
   "error": "NotFoundError",
-  "detail": "User 123 not found",
-  "code": "USER_NOT_FOUND"
+  "detail": "User 123 not found"
 }
 ```
 
@@ -361,49 +407,26 @@ Exception
 
 ## Logging
 
-### Log Levels
+Logging is configured via `app/core/logging.py` (`setup_logging()` + `get_logger(__name__)`).
 
-- **DEBUG**: Detailed information for debugging
-- **INFO**: General informational messages
-- **WARNING**: Warning messages
-- **ERROR**: Error messages
-- **CRITICAL**: Critical system errors
-
-### Log Output
-
-- **Console**: INFO and above
-- **File** (`logs/app.log`): DEBUG and above
-- **Error File** (`logs/error.log`): ERROR and above
+- Use structured logging (`get_logger`, not `print`).
+- Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL.
+- Console output for development; file handlers for production.
 
 ---
 
 ## Security Considerations
 
-1. **Environment Variables**: Sensitive data stored in `.env`
-2. **Database Credentials**: Never hardcoded
-3. **API Keys**: Not exposed in logs
-4. **Input Validation**: Pydantic validation
-5. **Error Handling**: Generic error messages to users
+1. Sensitive configuration in `.env` only — never hardcoded.
+2. Pydantic validation on all API inputs.
+3. Bot admin operations guarded by `_assert_admin()` — checks caller's role before every operation.
+4. Generic error messages surfaced to Telegram users; full detail only in server logs.
 
 ---
 
 ## Performance Considerations
 
-1. **Async Operations**: All I/O operations are async
-2. **Connection Pooling**: SQLAlchemy connection pool
-3. **Database Indexes**: On frequently queried columns
-4. **Caching**: Potential for Redis caching
-5. **Rate Limiting**: Recommended for production
-
----
-
-## Future Enhancements
-
-1. **Authentication**: JWT-based API authentication
-2. **Authorization**: Role-based access control
-3. **Caching**: Redis for frequently accessed data
-4. **Message Queue**: Celery for async tasks
-5. **Webhooks**: Instead of polling for bot updates
-6. **Analytics**: Task statistics and metrics
-7. **Notifications**: Email/SMS notifications
-8. **Multi-Executor**: Load balancing across executors
+1. All I/O is `async/await` throughout (SQLAlchemy `AsyncSession`, `httpx.AsyncClient`, `notion_client.AsyncClient`).
+2. SQLAlchemy connection pooling via `create_async_engine`.
+3. Notion sync is fire-and-forget — never blocks the bot response.
+4. FSM state stored in memory (`MemoryStorage`) — use Redis for multi-instance or restartable deployments.
