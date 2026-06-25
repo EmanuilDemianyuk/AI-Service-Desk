@@ -1,91 +1,62 @@
-# 🤖 HelpDesk AI Telegram Bot
+# HelpDesk AI Telegram Bot
 
 An automated helpdesk ticket management system built with Telegram, AI classification, PostgreSQL, and Notion.
 
-## 📋 Project Overview
+## Project Overview
 
 The system automatically:
 
-- ✅ Receives requests from employees through Telegram
-- ✅ Classifies issues using AI (OpenRouter)
-- ✅ Assigns appropriate executors automatically
-- ✅ Creates tasks in PostgreSQL database
-- ✅ Syncs tasks with Notion (optional)
-- ✅ Tracks task statuses in real-time
-- ✅ Collects executor feedback after completion
-- ✅ Manages applicant confirmation workflow
+- Receives requests from employees through Telegram
+- Classifies issues using AI (OpenRouter / qwen/qwen3-32b)
+- Routes tasks to the correct executor (SYSADMIN for IT issues, MASTER for facility issues)
+- Persists tasks in PostgreSQL database
+- Mirrors tasks to Notion (optional)
+- Tracks task statuses in real-time
+- Collects executor feedback after task completion
+- Handles applicant confirmation workflow
 
-## 🎯 MVP Scope
+## Architecture
 
-### Implemented Features
+Two processes run separately:
 
-✅ Telegram Bot with FSM-based conversation flow  
-✅ AI-based ticket classification (SYSTEM/LOCAL)  
-✅ PostgreSQL database with async ORM  
-✅ Notion integration for task tracking  
-✅ Task status management (6 states)  
-✅ Applicant confirmation workflow  
-✅ Executor feedback collection  
-✅ REST API with FastAPI  
-✅ Clean Architecture with Repository Pattern  
-✅ Full async/await implementation  
-✅ Comprehensive type hints  
-✅ Production-ready error handling  
-✅ Structured logging  
-✅ Docker & Docker Compose support
-
-### Out of Scope (MVP)
-
-- Chat between applicant and executor
-- Photo/file attachments
-- Voice messages
-- Multiple executors per task
-- SLA management
-- Task escalation
-- Task comments
-- Reminder notifications
-
-## 🏗️ Architecture
-
-The project follows **Clean Architecture** principles with clear separation of concerns:
+- **FastAPI server** (`app/main.py`) — REST API + database schema initialization on startup
+- **Bot runner** (`app/bot_runner.py`) — aiogram polling loop
 
 ```
-Presentation Layer (Telegram Bot, FastAPI)
-        ↓
-Interface Adapters (Handlers, Routes)
-        ↓
-Application Layer (Services)
-        ↓
-Domain Layer (Models, Entities)
-        ↓
-External Interfaces (Database, APIs)
+Telegram Bot / FastAPI   ← Presentation
+      ↓
+Bot Handlers / Routes    ← Interface Adapters
+      ↓
+Services                 ← Business Logic
+      ↓
+Repositories             ← Data Access
+      ↓
+PostgreSQL / OpenRouter / Notion   ← External
 ```
 
-[See ARCHITECTURE.md for detailed architecture documentation](ARCHITECTURE.md)
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.13+
+- Python 3.12+
 - PostgreSQL 16+
 - Docker & Docker Compose (optional)
 
 ### Using Docker Compose (Recommended)
 
 ```bash
-# 1. Clone and navigate to project
-cd "Service Desk Agent/service-desk-bot"
-
-# 2. Setup environment
+# 1. Setup environment
 cp .env.example .env
 # Edit .env with your credentials
 
-# 3. Start services
+# 2. Start all services
 docker-compose up -d
 
-# 4. Check status
-docker-compose logs -f app
+# 3. Check status
+docker-compose logs -f api
+docker-compose logs -f bot
 ```
 
 ### Local Development
@@ -93,7 +64,8 @@ docker-compose logs -f app
 ```bash
 # 1. Create virtual environment
 python -m venv venv
-source venv/Scripts/activate  # Windows: venv\Scripts\activate
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # Linux/macOS
 
 # 2. Install dependencies
 pip install -r requirements.txt
@@ -112,396 +84,473 @@ uvicorn app.main:app --reload
 python app/bot_runner.py
 ```
 
-[See SETUP.md for detailed setup instructions](SETUP.md)
+See [docs/SETUP.md](docs/SETUP.md) for detailed setup instructions.
 
-## 📱 Bot Usage
+## Bot Usage
 
-### For Applicants
+### Commands
 
-1. Start bot: `/start`
-2. Create requests with natural language descriptions
-3. AI automatically classifies the issue
-4. Track request status
-5. Confirm completion
+| Command | Description |
+|---|---|
+| `/start` | Start the bot and go to role-specific main menu |
+| `/help` | Show help message |
+| `/cancel` | Cancel current operation |
 
-### For Executors
+### For Applicants (APPLICANT role)
 
-1. Start bot: `/start`
-2. View new tasks assigned
-3. Take tasks into progress
-4. Complete work and provide feedback
-5. Receive applicant confirmation
+| Button | Description |
+|---|---|
+| 📝 Створити запит | Submit a new helpdesk request with natural language description |
+| 📋 Мої запити | View all submitted requests and their statuses |
+| ✅ Підтвердити запит | Confirm or reject task completion (WAITING_APPLICANT tasks) |
 
-## 🔄 Task Lifecycle
+**Request creation flow:**
+1. Press «📝 Створити запит»
+2. Describe the problem in natural language
+3. AI classifies the request (type, priority, title, description in Ukrainian)
+4. System finds the correct executor by type
+5. Task is created and the applicant receives a confirmation with task details
+
+### For Executors (EXECUTOR role)
+
+| Button | Description |
+|---|---|
+| 🆕 Нові завдання | View new tasks filtered by executor specialization |
+| ⏳ Мої завдання | View tasks currently IN_PROGRESS or WAITING_EXECUTOR |
+| ✅ Позначити як завершене | Mark an IN_PROGRESS task as complete (requires a feedback comment) |
+
+**Task execution flow:**
+1. View new tasks in «🆕 Нові завдання» (filtered by executor type: SYSADMIN sees SYSTEM tasks, MASTER sees LOCAL tasks)
+2. Open a task card and press «✅ Прийняти» to take it into progress
+3. When done, press «✅ Позначити як завершене»
+4. Enter a mandatory completion comment (feedback)
+5. Task moves to WAITING_APPLICANT — applicant is asked to confirm
+
+### For Admins (ADMIN role)
+
+| Button | Description |
+|---|---|
+| 👥 Користувачі | Browse all users, view details, change roles, delete users |
+| ➕ Створити користувача | Create a new user via multi-step form |
+| 📋 Всі завдання | View all tasks in the system (last 20 shown) |
+
+**User creation flow (4–5 steps):**
+1. Enter first name
+2. Enter last name
+3. Enter Telegram ID (numeric, must not already exist)
+4. Select role (APPLICANT / EXECUTOR / ADMIN)
+5. If EXECUTOR: select executor type (SYSADMIN or MASTER)
+
+**Role change flow:**
+Open user → «Змінити роль» → select new role → if EXECUTOR, select type.
+Changing a user away from EXECUTOR automatically clears their executor type.
+
+## Task Lifecycle
 
 ```
 NEW
-├─→ IN_PROGRESS (Executor takes task)
-│   └─→ WAITING_APPLICANT (Executor completes)
-│       ├─→ DONE (Applicant confirms)
-│       └─→ IN_PROGRESS (Applicant rejects)
-│           └─→ WAITING_EXECUTOR (Back to executor)
-└─→ CANCELLED (Task cancelled)
+├─> IN_PROGRESS           (executor accepts task via «🆕 Нові завдання»)
+│   └─> WAITING_APPLICANT (executor marks complete with feedback)
+│       ├─> DONE          (applicant confirms — task closed)
+│       └─> IN_PROGRESS   (applicant rejects — feedback cleared, returned to executor)
+└─> CANCELLED             (task cancelled, Notion page archived)
 ```
 
-## 💾 Database Schema
+`WAITING_EXECUTOR` status is defined in the schema and is included in the executor's active task list alongside `IN_PROGRESS`.
+
+## User Roles
+
+| Role | Description |
+|---|---|
+| APPLICANT | Regular employee; creates requests, confirms task completion |
+| EXECUTOR | Helpdesk specialist; accepts and resolves tasks |
+| ADMIN | System administrator; manages users |
+
+The first user whose Telegram ID matches `SUPERADMIN_TELEGRAM_ID` automatically receives the ADMIN role on first `/start`.
+
+### Executor Types
+
+| Type | Handles |
+|---|---|
+| SYSADMIN | IT tasks (computers, network, software, printers, servers) — `TaskType.SYSTEM` |
+| MASTER | Facility tasks (furniture, plumbing, lighting, doors) — `TaskType.LOCAL` |
+
+### Task Routing Logic
+
+AI classifies the task type, then server-side logic selects the executor:
+- `SYSTEM` → find first active executor with `ExecutorType.SYSADMIN`
+- `LOCAL` → find first active executor with `ExecutorType.MASTER`
+
+If no executor of the required type is registered, the applicant receives an error message asking them to contact the admin.
+
+## Database Schema
 
 ### Users Table
 
-```sql
-id SERIAL PRIMARY KEY
-telegram_id BIGINT UNIQUE NOT NULL
-full_name VARCHAR(255) NOT NULL
-username VARCHAR(255)
-role VARCHAR(50) DEFAULT 'APPLICANT'
-is_active BOOLEAN DEFAULT TRUE
-created_at TIMESTAMP DEFAULT NOW()
-```
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| telegram_id | BIGINT UNIQUE | |
+| full_name | VARCHAR(255) | |
+| username | VARCHAR(255) | nullable |
+| role | ENUM | APPLICANT / EXECUTOR / ADMIN |
+| type | ENUM | SYSADMIN / MASTER / NULL — only set for EXECUTOR role |
+| is_active | BOOLEAN | default TRUE |
+| created_at | TIMESTAMP | |
 
 ### Tasks Table
 
-```sql
-id SERIAL PRIMARY KEY
-applicant_id INTEGER NOT NULL REFERENCES users(id)
-executor_id INTEGER REFERENCES users(id)
-title TEXT NOT NULL
-description TEXT
-type VARCHAR(50) NOT NULL  -- SYSTEM or LOCAL
-priority VARCHAR(50) NOT NULL  -- LOW, MEDIUM, HIGH
-status VARCHAR(50) NOT NULL  -- See lifecycle above
-feedback TEXT
-notion_page_id VARCHAR(255)
-created_at TIMESTAMP DEFAULT NOW()
-closed_at TIMESTAMP
-```
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| notion_page_id | VARCHAR(255) | nullable; set after Notion sync |
+| applicant_id | INTEGER FK→users | CASCADE on delete |
+| executor_id | INTEGER FK→users | nullable; SET NULL on delete |
+| title | VARCHAR(255) | set by AI (Ukrainian) |
+| description | TEXT | set by AI (Ukrainian); nullable |
+| type | ENUM | SYSTEM / LOCAL |
+| priority | ENUM | LOW / MEDIUM / HIGH |
+| status | ENUM | NEW / IN_PROGRESS / WAITING_APPLICANT / WAITING_EXECUTOR / DONE / CANCELLED |
+| feedback | TEXT | executor's completion comment; nullable |
+| created_at | TIMESTAMP | |
+| closed_at | TIMESTAMP | nullable; set when DONE or CANCELLED |
 
-## 🤖 AI Integration
+## AI Integration
 
-Uses OpenRouter API to classify tickets:
+Uses **OpenRouter API** with model `qwen/qwen3-32b`.
 
-**Input**: Natural language problem description  
-**Output**: JSON with classification
+**Input**: Employee's natural language problem description
+
+**Output**: JSON with classification (all text fields in Ukrainian)
 
 ```json
 {
-  "title": "Brief issue title",
-  "description": "Detailed description",
-  "type": "SYSTEM or LOCAL",
-  "priority": "LOW, MEDIUM, or HIGH",
-  "executor": "SysAdmin or Caretaker"
+  "title": "Коротка назва проблеми",
+  "description": "Детальний опис проблеми",
+  "type": "SYSTEM або LOCAL",
+  "priority": "LOW, MEDIUM або HIGH"
 }
 ```
 
-**Task Type Assignment**:
+The AI does **not** determine the executor. Executor selection is server-side logic based on `type`.
 
-- **SYSTEM** → SysAdmin (computers, printers, network, software, servers)
-- **LOCAL** → Caretaker (furniture, doors, lighting, facility maintenance)
+**Task type rules:**
+- `SYSTEM` — computers, printers, internet, Wi-Fi, network, software, servers, IT equipment
+- `LOCAL` — furniture, doors, windows, lighting, plumbing, office infrastructure, facility maintenance
 
-## 📡 REST API
+**Priority rules:**
+- `HIGH` — work stopped, critical system unavailable, many users affected
+- `MEDIUM` — work is impaired but possible
+- `LOW` — minor inconvenience
 
-Access Swagger UI at: http://localhost:8000/docs
+## REST API
+
+Swagger UI: `http://localhost:8000/docs`  
+ReDoc: `http://localhost:8000/redoc`
 
 ### Endpoints
 
-| Method | Endpoint                      | Description        |
-| ------ | ----------------------------- | ------------------ |
-| GET    | `/health`                     | Health check       |
-| GET    | `/api/tasks`                  | List all tasks     |
-| GET    | `/api/tasks/{task_id}`        | Get task by ID     |
-| POST   | `/api/tasks`                  | Create new task    |
-| PATCH  | `/api/tasks/{task_id}/status` | Update task status |
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+| POST | `/api/users` | Create user; EXECUTOR requires `type=SYSADMIN\|MASTER` |
+| GET | `/api/users` | List all users |
+| PATCH | `/api/users/{user_id}` | Partial update; changing role away from EXECUTOR clears `type` |
+| GET | `/api/tasks` | List all tasks (`{items: [...], total: N}`) |
+| GET | `/api/tasks/{task_id}` | Get task by ID |
+| POST | `/api/tasks` | Create a task |
+| PATCH | `/api/tasks/{task_id}/status` | Update status, feedback, executor_id |
+| POST | `/api/notion/sync` | Bulk-sync all DB tasks to Notion |
 
-## 🧬 Code Structure
-
-```
-app/
-├── ai/                    # AI classification service
-│   ├── ai_service.py
-│   └── __init__.py
-├── bot/                   # Telegram bot
-│   ├── handlers/          # Message/callback handlers
-│   │   ├── common.py
-│   │   ├── applicant.py
-│   │   ├── executor.py
-│   │   └── __init__.py
-│   ├── keyboards/         # Inline buttons
-│   │   ├── applicant.py
-│   │   ├── executor.py
-│   │   └── __init__.py
-│   ├── states/            # FSM states
-│   │   ├── states.py
-│   │   └── __init__.py
-│   ├── bot.py
-│   └── __init__.py
-├── database/              # Data layer
-│   ├── models/            # ORM models
-│   │   ├── user.py
-│   │   ├── task.py
-│   │   └── __init__.py
-│   ├── repositories/      # Data access
-│   │   ├── base.py
-│   │   ├── user_repository.py
-│   │   ├── task_repository.py
-│   │   └── __init__.py
-│   ├── base.py            # SQLAlchemy setup
-│   ├── session.py
-│   └── __init__.py
-├── services/              # Business logic
-│   ├── user_service.py
-│   ├── task_service.py
-│   ├── ai_service.py
-│   ├── notion_service.py
-│   ├── dependencies.py
-│   └── __init__.py
-├── api/                   # FastAPI routes
-│   ├── routes.py
-│   └── __init__.py
-├── schemas/               # Pydantic models
-│   ├── schemas.py
-│   └── __init__.py
-├── config/                # Configuration
-│   ├── settings.py
-│   └── __init__.py
-├── core/                  # Core utilities
-│   ├── logging.py
-│   └── __init__.py
-├── exceptions/            # Custom exceptions
-│   ├── exceptions.py
-│   └── __init__.py
-├── main.py                # FastAPI app
-├── bot_runner.py          # Bot entry point
-└── __init__.py
-migrations/               # Alembic migrations
-├── env.py
-├── versions/
-│   └── 001_initial.py
-└── __init__.py
-```
-
-## 🏭 Design Patterns Used
-
-- **Repository Pattern**: Data access abstraction
-- **Service Layer**: Business logic encapsulation
-- **Dependency Injection**: Loose coupling
-- **Finite State Machine**: Bot conversation flow
-- **Clean Architecture**: Clear separation of concerns
-
-## ⚙️ Technology Stack
-
-### Backend
-
-- **Python 3.13**: Language
-- **FastAPI 0.104.1**: REST API framework
-- **Uvicorn 0.24.0**: ASGI server
-- **aiogram 3.3.0**: Telegram bot framework
-
-### Database
-
-- **PostgreSQL 16**: Primary database
-- **SQLAlchemy 2.0.23**: Async ORM
-- **Alembic 1.13.0**: Migrations
-- **psycopg 3.17.0**: PostgreSQL adapter
-
-### Data & Config
-
-- **Pydantic 2.5.0**: Data validation
-- **Pydantic Settings 2.1.0**: Configuration management
-- **python-dotenv 1.0.0**: Environment variables
-
-### External APIs
-
-- **OpenRouter**: AI classification
-- **Notion API**: Task management
-- **Telegram Bot API**: User interface
-
-### DevOps
-
-- **Docker**: Containerization
-- **Docker Compose**: Orchestration
-
-### Logging & Monitoring
-
-- **structlog 24.1.0**: Structured logging
-- **python-json-logger 2.0.7**: JSON logs
-
-## 🔐 Configuration
-
-Create `.env` file from `.env.example`:
-
-```env
-# Telegram
-BOT_TOKEN=your_bot_token
-
-# AI Provider
-OPENROUTER_API_KEY=your_api_key
-
-# Notion (optional)
-NOTION_TOKEN=your_notion_token
-NOTION_DATABASE_ID=your_database_id
-
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=helpdesk
-POSTGRES_USER=helpdesk_user
-POSTGRES_PASSWORD=secure_password
-
-# App
-DEBUG=false
-ENVIRONMENT=production
-```
-
-## 📝 API Examples
-
-### Get All Tasks
+### API Examples
 
 ```bash
+# Health check
+curl http://localhost:8000/health
+
+# List users
+curl http://localhost:8000/api/users
+
+# Create APPLICANT user
+curl -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"telegram_id": 123456789, "full_name": "John Doe", "role": "APPLICANT"}'
+
+# Create EXECUTOR user
+curl -X POST http://localhost:8000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"telegram_id": 987654321, "full_name": "Jane Smith", "role": "EXECUTOR", "type": "SYSADMIN"}'
+
+# Update user role
+curl -X PATCH http://localhost:8000/api/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{"role": "EXECUTOR", "type": "MASTER"}'
+
+# List all tasks
 curl http://localhost:8000/api/tasks
-```
 
-### Get Single Task
-
-```bash
-curl http://localhost:8000/api/tasks/1
-```
-
-### Create Task
-
-```bash
+# Create task
 curl -X POST http://localhost:8000/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "applicant_id": 1,
     "executor_id": 2,
-    "title": "Printer not working",
-    "description": "Warehouse printer unable to print",
+    "title": "Принтер не друкує",
+    "description": "Принтер на складі не може надрукувати документи",
     "type": "SYSTEM",
     "priority": "MEDIUM"
   }'
-```
 
-### Update Task Status
-
-```bash
+# Update task status
 curl -X PATCH http://localhost:8000/api/tasks/1/status \
   -H "Content-Type: application/json" \
-  -d '{
-    "status": "IN_PROGRESS"
-  }'
+  -d '{"status": "IN_PROGRESS"}'
+
+# Bulk sync to Notion
+curl -X POST http://localhost:8000/api/notion/sync
 ```
 
-## 🧪 Testing
+## Notion Integration
 
-Run tests:
+Notion acts as a **read-only mirror** of the database. The database is the single source of truth.
 
-```bash
-pytest
+| DB Operation | Notion Operation |
+|---|---|
+| `create_task` | Create Notion page; persist `notion_page_id` back to DB |
+| `take_task` | Update Notion page |
+| `complete_task` | Update Notion page |
+| `confirm_task` | Update Notion page |
+| `reject_task` | Update Notion page |
+| `cancel_task` | Archive Notion page |
+| `POST /api/notion/sync` | Bulk reconciliation: create/update all tasks; log orphaned pages |
+
+Notion is **optional**. All Notion operations are silently skipped when `NOTION_TOKEN` or `NOTION_DATABASE_ID` are absent. Notion errors are logged but never block or roll back DB operations.
+
+**Notion page properties:**
+
+| Property | Type | Content |
+|---|---|---|
+| Task ID | title | DB task ID |
+| Title | rich_text | Task title |
+| Description | rich_text | Task description |
+| Type | select | SYSTEM / LOCAL |
+| Priority | select | LOW / MEDIUM / HIGH |
+| Status | select | Current task status |
+| Applicant | rich_text | Applicant's full name |
+| Executor | rich_text | Executor's full name |
+| Created At | date | ISO-8601 creation date |
+| Feedback | rich_text | Executor's completion comment |
+| Closed At | date | ISO-8601 closing date |
+
+## Project Structure
+
+```
+app/
+├── main.py                     # FastAPI app entry point
+├── bot_runner.py               # Bot polling loop entry point
+├── api/
+│   └── routes.py               # FastAPI route handlers
+├── bot/
+│   ├── bot.py                  # Bot and dispatcher setup
+│   ├── handlers/
+│   │   ├── common.py           # /start, /help, /cancel, guard callbacks
+│   │   ├── applicant.py        # Applicant workflow handlers
+│   │   ├── executor.py         # Executor workflow handlers
+│   │   └── admin.py            # Admin panel handlers
+│   ├── keyboards/
+│   │   ├── applicant.py        # Applicant keyboard layouts
+│   │   ├── executor.py         # Executor keyboard layouts
+│   │   ├── admin.py            # Admin keyboard layouts
+│   │   └── localizer.py        # Ukrainian display text for statuses/priorities/types
+│   ├── middleware/
+│   │   ├── command_guard.py    # Guards commands during active input flows
+│   │   └── nav_delete.py       # Deletes navigation messages from chat
+│   └── states/
+│       └── states.py           # FSM state groups + FLOW_STATES frozenset
+├── config/
+│   └── settings.py             # Pydantic BaseSettings — all env vars
+├── core/
+│   └── logging.py              # setup_logging() + get_logger()
+├── database/
+│   ├── base.py                 # SQLAlchemy engine + Base
+│   ├── session.py              # get_db_session FastAPI dependency
+│   ├── models/
+│   │   ├── user.py             # User model, UserRole, ExecutorType enums
+│   │   └── task.py             # Task model, TaskStatus, TaskType, TaskPriority enums
+│   └── repositories/
+│       ├── base.py             # Abstract BaseRepository
+│       ├── user_repository.py  # User data access
+│       └── task_repository.py  # Task data access
+├── exceptions/
+│   └── exceptions.py           # Custom exception hierarchy (AppException subclasses)
+├── schemas/
+│   └── schemas.py              # Pydantic request/response schemas
+└── services/
+    ├── ai_service.py           # OpenRouter ticket classification
+    ├── notion_service.py       # Direct Notion CRUD (legacy)
+    ├── notion_sync_service.py  # Centralised Notion sync (preferred)
+    ├── task_service.py         # Task lifecycle + Notion sync side effects
+    ├── user_service.py         # User CRUD, role management, executor selection
+    └── dependencies.py         # Service factory functions for FastAPI DI
+
+migrations/
+├── env.py
+└── versions/
+    ├── a6ac8a5bb63b_initial.py
+    └── b1c3e7f2a894_add_executor_type_to_users.py
+
+scripts/
+└── migrate_tasks_to_ukrainian.py
 ```
 
-Run with coverage:
+## Configuration
+
+Copy `.env.example` to `.env` and fill in your values:
+
+```env
+# Telegram Bot (required)
+BOT_TOKEN=your_bot_token_here
+SUPERADMIN_TELEGRAM_ID=your_telegram_id_here
+
+# Database (required)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=helpdesk
+POSTGRES_USER=helpdesk_user
+POSTGRES_PASSWORD=secure_password_here
+
+# FastAPI (optional, defaults shown)
+API_HOST=0.0.0.0
+API_PORT=8000
+DEBUG=false
+ENVIRONMENT=development
+
+# AI Provider (optional — AI classification disabled if absent)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# Notion Integration (optional — Notion sync disabled if absent)
+NOTION_TOKEN=your_notion_token_here
+NOTION_DATABASE_ID=your_notion_database_id_here
+```
+
+### Required variables
+
+| Variable | Description |
+|---|---|
+| `BOT_TOKEN` | Telegram bot token from @BotFather |
+| `SUPERADMIN_TELEGRAM_ID` | Telegram user ID that automatically gets ADMIN role on first `/start` |
+| `POSTGRES_HOST` | PostgreSQL host |
+| `POSTGRES_PORT` | PostgreSQL port (default: 5432) |
+| `POSTGRES_DB` | Database name |
+| `POSTGRES_USER` | Database user |
+| `POSTGRES_PASSWORD` | Database password |
+
+### Optional variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `OPENROUTER_API_KEY` | OpenRouter API key; AI classification disabled if absent | — |
+| `NOTION_TOKEN` | Notion integration token; Notion sync disabled if absent | — |
+| `NOTION_DATABASE_ID` | Notion database ID; Notion sync disabled if absent | — |
+| `API_HOST` | FastAPI bind host | `0.0.0.0` |
+| `API_PORT` | FastAPI bind port | `8000` |
+| `DEBUG` | Enable debug mode | `false` |
+| `ENVIRONMENT` | Environment name | `development` |
+
+## Technology Stack
+
+| Category | Technology |
+|---|---|
+| Language | Python 3.12 |
+| Bot framework | aiogram 3.3.0 |
+| REST API | FastAPI 0.104.1 |
+| ASGI server | Uvicorn 0.24.0 |
+| Database | PostgreSQL 16 |
+| ORM | SQLAlchemy 2.0.23 (async) |
+| Migrations | Alembic 1.13.0 |
+| PG adapter | asyncpg + psycopg3 |
+| Validation | Pydantic 2.5.0 |
+| Settings | pydantic-settings 2.1.0 |
+| AI API | OpenRouter (qwen/qwen3-32b) |
+| Notion API | notion-client 2.2.1 |
+| Logging | structlog 24.1.0 |
+| Containerization | Docker + Docker Compose |
+
+## Database Migrations
 
 ```bash
+# Apply all pending migrations
+alembic upgrade head
+
+# Create a new migration (auto-generate from models)
+alembic revision --autogenerate -m "description"
+
+# Roll back one step
+alembic downgrade -1
+```
+
+Migration history:
+1. `a6ac8a5bb63b_initial` — creates `users` and `tasks` tables
+2. `b1c3e7f2a894_add_executor_type_to_users` — adds `type` (ExecutorType) column to `users`
+
+## Code Quality
+
+```bash
+bash format.sh    # black + isort
+bash check.sh     # pytest + mypy + flake8 + formatting check
+mypy app/
+flake8 app/
 pytest --cov=app
 ```
 
-## 📊 Logging
+## Logging
 
 Logs are written to:
 
-- **Console**: INFO level and above
-- **logs/app.log**: All logs (DEBUG and above)
-- **logs/error.log**: Error logs only
-
-View logs:
+- **Console** — INFO level and above
+- **logs/app.log** — all logs (DEBUG and above)
+- **logs/error.log** — ERROR logs only
 
 ```bash
 # Docker
-docker-compose logs -f app
+docker-compose logs -f api
+docker-compose logs -f bot
 
 # Local
 tail -f logs/app.log
 ```
 
-## 🚢 Deployment
+## Deployment
 
-### Docker Compose (Recommended)
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full deployment instructions.
 
-```bash
-docker-compose -f docker-compose.yml up -d
-```
-
-### Manual Deployment
+### Docker Compose (quick start)
 
 ```bash
-# Install production requirements
-pip install gunicorn
-
-# Run with Gunicorn
-gunicorn app.main:app \
-  --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000
+docker-compose up -d
+docker-compose logs -f api
+docker-compose logs -f bot
 ```
 
-## 🔍 Monitoring & Logs
-
-Health check:
+### Manual deployment
 
 ```bash
-curl http://localhost:8000/health
+# API server
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Bot (separate process)
+python app/bot_runner.py
 ```
 
-Response:
+## Documentation
 
-```json
-{
-  "status": "healthy",
-  "message": "Service is running"
-}
-```
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — Architecture, data flow, design patterns
+- [docs/SETUP.md](docs/SETUP.md) — Detailed setup instructions
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Production deployment guide
+- [docs/INDEX.md](docs/INDEX.md) — Project file index
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-## 📚 Documentation
+## License
 
-- [SETUP.md](SETUP.md) - Detailed setup instructions
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture documentation
-- API Docs: http://localhost:8000/docs (Swagger UI)
-- ReDoc: http://localhost:8000/redoc
-
-## ✅ Requirements Met
-
-- ✅ Production-ready code
-- ✅ Python 3.13
-- ✅ FastAPI with async endpoints
-- ✅ aiogram 3.x bot framework
-- ✅ PostgreSQL with async ORM
-- ✅ SQLAlchemy 2.x with AsyncSession
-- ✅ Alembic migrations
-- ✅ Pydantic v2 with Settings
-- ✅ Dependency injection
-- ✅ Repository pattern
-- ✅ Service layer pattern
-- ✅ Structured logging
-- ✅ Environment variables via Pydantic
-- ✅ Full async/await
-- ✅ Complete type hints
-- ✅ Clean Architecture
-- ✅ SOLID principles
-- ✅ Docker & Docker Compose support
-- ✅ Comprehensive error handling
-- ✅ Notion integration
-- ✅ AI classification
-
-## 🤝 Contributing
-
-1. Create a feature branch
-2. Make changes
-3. Run tests and linting
-4. Submit pull request
-
-## 📄 License
-
-Proprietary - Service Desk Agent Project
-
-## 👥 Support
-
-For issues, questions, or contributions, please refer to the documentation or create an issue in the project repository.
+Proprietary — Service Desk Agent Project

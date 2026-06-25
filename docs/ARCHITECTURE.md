@@ -58,11 +58,11 @@ This document describes the architecture and design patterns used in the HelpDes
 │  ├─ GET  /health                                         │
 │  ├─ POST /api/users                                      │
 │  ├─ GET  /api/users                                      │
-│  ├─ PATCH /api/users/{id}                                │
+│  ├─ PATCH /api/users/{user_id}                           │
 │  ├─ GET  /api/tasks                                      │
-│  ├─ GET  /api/tasks/{id}                                 │
+│  ├─ GET  /api/tasks/{task_id}                            │
 │  ├─ POST /api/tasks                                      │
-│  ├─ PATCH /api/tasks/{id}/status                         │
+│  ├─ PATCH /api/tasks/{task_id}/status                    │
 │  └─ POST /api/notion/sync                                │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -74,8 +74,6 @@ This document describes the architecture and design patterns used in the HelpDes
 ### 1. Repository Pattern
 
 **Purpose**: Abstract database access and provide a uniform interface.
-
-**Implementation**:
 
 ```python
 # app/database/repositories/user_repository.py
@@ -91,8 +89,6 @@ class UserRepository(BaseRepository):
 ### 2. Service Layer Pattern
 
 **Purpose**: Encapsulate business logic separate from presentation and data layers.
-
-**Implementation**:
 
 ```python
 # app/services/user_service.py
@@ -160,7 +156,7 @@ class AdminStates(StatesGroup):
     task_list = State()
 ```
 
-`FLOW_STATES` is a `frozenset` of states where user is actively entering data — used by middleware to protect in-progress input.
+`FLOW_STATES` is a `frozenset` of states where the user is actively entering data — used by middleware to protect in-progress input.
 
 ---
 
@@ -220,7 +216,7 @@ NotionSyncService.create_task()       — non-blocking, errors logged only
 Response sent to applicant
 ```
 
-> **Important**: The AI model never determines the executor. Executor assignment is
+> **Important**: The AI model does **not** determine the executor. Executor assignment is
 > server-side business logic based on `task_type` → `ExecutorType` mapping.
 
 ### Notion Sync Strategy
@@ -229,7 +225,8 @@ Response sent to applicant
 
 - Every successful DB commit is followed by a fire-and-forget Notion sync.
 - Notion errors are logged but **never** propagated — they do not roll back DB transactions.
-- Sync is handled by `NotionSyncService` (not `NotionService`). `NotionService` is a legacy class kept for backward compatibility.
+- All Notion sync is handled by `NotionSyncService` (`app/services/notion_sync_service.py`).
+- `NotionService` (`app/services/notion_service.py`) is a legacy direct-CRUD client kept for backward compatibility.
 
 | DB operation | Notion operation |
 |---|---|
@@ -263,6 +260,7 @@ Users Table
 Tasks Table
 ┌──────────────────────────────────┐
 │ id (PK)                          │
+│ notion_page_id                   │
 │ applicant_id (FK → users.id)     │
 │ executor_id  (FK → users.id)     │
 │ title (NOT NULL)                 │
@@ -271,7 +269,6 @@ Tasks Table
 │ priority (LOW│MEDIUM│HIGH)       │
 │ status                           │
 │ feedback                         │
-│ notion_page_id                   │
 │ created_at                       │
 │ closed_at                        │
 └──────────────────────────────────┘
@@ -293,12 +290,14 @@ All enums extend both `str` and `enum.Enum` so they serialize to plain strings w
 
 ```
 NEW
-├─> IN_PROGRESS           (executor takes task via "🆕 Нові завдання")
+├─> IN_PROGRESS           (executor takes task via «🆕 Нові завдання»)
 │   └─> WAITING_APPLICANT (executor marks complete with feedback)
 │       ├─> DONE          (applicant confirms)
 │       └─> IN_PROGRESS   (applicant rejects — feedback cleared)
 └─> CANCELLED             (task cancelled, Notion page archived)
 ```
+
+`WAITING_EXECUTOR` is defined in the schema and appears in the executor's active task list query (alongside `IN_PROGRESS`).
 
 ---
 
@@ -311,6 +310,7 @@ NEW
 - `get_or_create_user` — upsert on first `/start`
 - `get_executor_for_type(task_type)` — strict executor selection by specialization; raises `NoExecutorError` if none available
 - `update_user_fields` — partial update with role/type consistency validation
+- `delete_user` — deletes user and cascades to their created tasks; clears `executor_id` on assigned tasks
 
 ### TaskService (`app/services/task_service.py`)
 
@@ -323,7 +323,7 @@ NEW
 
 - Calls OpenRouter (`qwen/qwen3-32b`) with `response_format: json_object`
 - Returns `AIClassificationResponse`: `{title, description, type, priority}` — all text in Ukrainian
-- Does **not** determine the executor; executor selection is a server responsibility
+- Does **not** determine the executor; executor selection is a server-side responsibility
 
 ### NotionSyncService (`app/services/notion_sync_service.py`)
 
@@ -334,8 +334,8 @@ NEW
 
 ### NotionService (`app/services/notion_service.py`)
 
-- Legacy direct-CRUD Notion client
-- Kept for backward compatibility; prefer `NotionSyncService` for new code
+- Legacy direct-CRUD Notion client; kept for backward compatibility
+- Use `NotionSyncService` for all new code
 
 ---
 
@@ -392,16 +392,7 @@ Exception
    └─ NoExecutorError        — no executor of required type is registered
 ```
 
-FastAPI maps `AppException` → HTTP 400; `RequestValidationError` → HTTP 422.
-
-### Error Response Format
-
-```json
-{
-  "error": "NotFoundError",
-  "detail": "User 123 not found"
-}
-```
+FastAPI maps `AppException` → HTTP 400; `NotFoundError` → HTTP 404; `RequestValidationError` → HTTP 422.
 
 ---
 
@@ -411,7 +402,7 @@ Logging is configured via `app/core/logging.py` (`setup_logging()` + `get_logger
 
 - Use structured logging (`get_logger`, not `print`).
 - Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL.
-- Console output for development; file handlers for production.
+- Console output for development; file handlers (`logs/app.log`, `logs/error.log`) for all environments.
 
 ---
 

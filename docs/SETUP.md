@@ -4,7 +4,7 @@ This document provides step-by-step instructions to setup and run the HelpDesk T
 
 ## Prerequisites
 
-- Python 3.13 or later
+- Python 3.12 or later
 - PostgreSQL 16 or later (can use Docker)
 - Docker and Docker Compose (optional, for containerized setup)
 - Telegram Bot Token (from BotFather)
@@ -56,7 +56,8 @@ docker-compose up -d
 
 ```bash
 docker-compose ps
-docker-compose logs -f app
+docker-compose logs -f api
+docker-compose logs -f bot
 ```
 
 #### Step 5: Stop Services
@@ -352,7 +353,7 @@ pytest --cov=app
 ### Bot not responding
 
 1. Verify `BOT_TOKEN` in `.env`
-2. Check logs: `docker-compose logs -f app`
+2. Check logs: `docker-compose logs -f bot`
 3. Confirm the Telegram account can reach the bot
 
 ### Database connection error
