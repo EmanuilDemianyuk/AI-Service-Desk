@@ -1,17 +1,17 @@
 """Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from pydantic import BaseModel, Field, model_validator
-from typing import Optional
 
-from app.database.models import TaskStatus, TaskType, TaskPriority, UserRole, ExecutorType
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.database.models import ExecutorType, TaskPriority, TaskStatus, TaskType, UserRole
 
 
 class UserBase(BaseModel):
     """Base user schema."""
 
     full_name: str
-    username: Optional[str] = None
+    username: str | None = None
     role: UserRole = UserRole.APPLICANT
 
 
@@ -19,7 +19,7 @@ class UserCreate(UserBase):
     """User creation schema."""
 
     telegram_id: int
-    type: Optional[ExecutorType] = None
+    type: ExecutorType | None = None
 
     @model_validator(mode="after")
     def validate_executor_type(self) -> "UserCreate":
@@ -33,18 +33,16 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """User partial-update schema. All fields optional; only provided fields are changed."""
 
-    full_name: Optional[str] = None
-    username: Optional[str] = None
-    telegram_id: Optional[int] = None
-    role: Optional[UserRole] = None
-    type: Optional[ExecutorType] = None
+    full_name: str | None = None
+    username: str | None = None
+    telegram_id: int | None = None
+    role: UserRole | None = None
+    type: ExecutorType | None = None
 
     @model_validator(mode="after")
     def validate_role_type(self) -> "UserUpdate":
-        # When explicitly setting role=EXECUTOR, type must be provided in the same request
         if self.role == UserRole.EXECUTOR and self.type is None:
             raise ValueError("type is required when setting role to EXECUTOR (SYSADMIN or MASTER)")
-        # When explicitly setting a non-EXECUTOR role, type must not be provided
         if self.role is not None and self.role != UserRole.EXECUTOR and self.type is not None:
             raise ValueError("type must be null for non-EXECUTOR roles")
         return self
@@ -53,21 +51,20 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     """User response schema."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     telegram_id: int
-    type: Optional[ExecutorType] = None
+    type: ExecutorType | None = None
     is_active: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class TaskBase(BaseModel):
     """Base task schema."""
 
     title: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: str | None = None
     type: TaskType
     priority: TaskPriority
 
@@ -76,31 +73,30 @@ class TaskCreate(TaskBase):
     """Task creation schema."""
 
     applicant_id: int
-    executor_id: Optional[int] = None
+    executor_id: int | None = None
 
 
 class TaskUpdate(BaseModel):
     """Task update schema."""
 
-    status: Optional[TaskStatus] = None
-    feedback: Optional[str] = None
-    executor_id: Optional[int] = None
+    status: TaskStatus | None = None
+    feedback: str | None = None
+    executor_id: int | None = None
 
 
 class TaskResponse(TaskBase):
     """Task response schema."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     applicant_id: int
-    executor_id: Optional[int] = None
+    executor_id: int | None = None
     status: TaskStatus
-    feedback: Optional[str] = None
+    feedback: str | None = None
     created_at: datetime
-    closed_at: Optional[datetime] = None
-    notion_page_id: Optional[str] = None
-
-    class Config:
-        from_attributes = True
+    closed_at: datetime | None = None
+    notion_page_id: str | None = None
 
 
 class TaskListResponse(BaseModel):
@@ -121,5 +117,5 @@ class ErrorResponse(BaseModel):
     """Error response schema."""
 
     error: str
-    detail: Optional[str] = None
-    code: Optional[str] = None
+    detail: str | None = None
+    code: str | None = None

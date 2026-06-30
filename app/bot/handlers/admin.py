@@ -34,6 +34,10 @@ _TYPE_LABELS = {
     ExecutorType.SYSADMIN: "Системний адміністратор",
     ExecutorType.MASTER: "Майстер",
 }
+_TYPE_LABELS_SHORT = {
+    ExecutorType.SYSADMIN: "SysAdmin (IT)",
+    ExecutorType.MASTER: "Master (господарча частина)",
+}
 
 _MAX_NAME_LEN = 50
 
@@ -241,11 +245,6 @@ async def admin_set_role_executor_type(
     data = await state.get_data()
     user_id: int = data["edit_user_id"]
 
-    _TYPE_LABELS = {
-        ExecutorType.SYSADMIN: "SysAdmin (IT)",
-        ExecutorType.MASTER: "Master (господарча частина)",
-    }
-
     try:
         updated = await user_service.update_user_fields(
             user_id,
@@ -259,7 +258,7 @@ async def admin_set_role_executor_type(
     await callback_query.message.answer(
         f"✅ Роль і тип <b>{updated.full_name}</b> оновлено:\n"
         f"👔 Роль: {_ROLE_LABELS[UserRole.EXECUTOR]}\n"
-        f"🔧 Тип: {_TYPE_LABELS[executor_type]}",
+        f"🔧 Тип: {_TYPE_LABELS_SHORT[executor_type]}",
         reply_markup=get_admin_main_menu(),
         parse_mode="HTML",
     )
@@ -481,11 +480,6 @@ async def admin_create_user_executor_type(
     full_name = f"{data['first_name']} {data['last_name']}"
     telegram_id: int = data["telegram_id"]
 
-    _TYPE_LABELS = {
-        ExecutorType.SYSADMIN: "SysAdmin (IT)",
-        ExecutorType.MASTER: "Master (господарча частина)",
-    }
-
     try:
         user = await user_service.create_user(
             telegram_id=telegram_id,
@@ -506,7 +500,7 @@ async def admin_create_user_executor_type(
         f"👤 <b>{user.full_name}</b>\n"
         f"📱 Telegram ID: <code>{user.telegram_id}</code>\n"
         f"👔 Роль: {_ROLE_LABELS[user.role]}\n"
-        f"🔧 Тип: {_TYPE_LABELS[executor_type]}",
+        f"🔧 Тип: {_TYPE_LABELS_SHORT[executor_type]}",
         reply_markup=get_admin_main_menu(),
         parse_mode="HTML",
     )

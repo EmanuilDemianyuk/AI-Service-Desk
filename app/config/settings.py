@@ -1,9 +1,12 @@
-from pydantic_settings import BaseSettings
 from functools import cached_property
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
     # Application
     DEBUG: bool = False
@@ -14,7 +17,7 @@ class Settings(BaseSettings):
 
     # Superadmin
     SUPERADMIN_TELEGRAM_ID: str
-    
+
     # Database
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
@@ -32,10 +35,6 @@ class Settings(BaseSettings):
     # Notion
     NOTION_TOKEN: str = ""
     NOTION_DATABASE_ID: str = ""
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
     @property
     def superadmin_id(self) -> int | None:

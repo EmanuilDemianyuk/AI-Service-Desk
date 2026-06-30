@@ -196,6 +196,28 @@ class TaskService:
         await self._notion_archive(task)
         return task
 
+    async def patch_task(
+        self,
+        task_id: int,
+        status: TaskStatus | None = None,
+        feedback: str | None = None,
+        executor_id: int | None = None,
+    ) -> Task:
+        """General-purpose administrative task update. Applies only the provided fields."""
+        task = await self.get_task(task_id)
+        update_kwargs: dict = {}
+        if status is not None:
+            update_kwargs["status"] = status
+        if feedback is not None:
+            update_kwargs["feedback"] = feedback
+        if executor_id is not None:
+            update_kwargs["executor_id"] = executor_id
+        if update_kwargs:
+            task = await self.task_repository.update(task, **update_kwargs)
+            await self.task_repository.commit()
+            await self._notion_update(task)
+        return task
+
     async def update_notion_page_id(self, task_id: int, notion_page_id: str) -> Task:
         """Update Notion page ID for a task."""
         task = await self.get_task(task_id)
