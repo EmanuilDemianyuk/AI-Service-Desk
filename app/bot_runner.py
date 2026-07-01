@@ -1,25 +1,11 @@
 """Bot runner for polling."""
 
 import asyncio
-import logging
 
-from aiogram import Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
-
-from app.config import settings
 from app.bot import setup_bot
-from app.database.base import AsyncSessionLocal
-from app.database.repositories import UserRepository, TaskRepository
-from app.services import (
-    UserService,
-    TaskService,
-    AIService,
-    NotionService,
-    NotionSyncService,
-)
-from app.core import setup_logging, get_logger
+from app.core import get_logger, setup_logging
+from app.services import AIService, NotionService
 
-# Setup logging
 setup_logging()
 logger = get_logger(__name__)
 
@@ -28,28 +14,12 @@ async def main() -> None:
     """Main bot runner."""
     logger.info("🤖 Starting Telegram bot...")
 
-    # Setup bot
     bot, dp = await setup_bot()
 
-    # Create services
-    async with AsyncSessionLocal() as session:
-        user_repository = UserRepository(session)
-        task_repository = TaskRepository(session)
-        user_service = UserService(user_repository)
-        notion_sync = NotionSyncService()
-        task_service = TaskService(task_repository, user_repository, notion_sync=notion_sync)
-        ai_service = AIService()
-        notion_service = NotionService()
-
-        # Inject dependencies
-        dp.workflow_data.update(
-            {
-                "user_service": user_service,
-                "task_service": task_service,
-                "ai_service": ai_service,
-                "notion_service": notion_service,
-            }
-        )
+    # Singleton services that carry no DB session — safe to share across all updates.
+    # Per-request UserService / TaskService are injected by DbSessionMiddleware.
+    dp.workflow_data["ai_service"] = AIService()
+    dp.workflow_data["notion_service"] = NotionService()
 
     try:
         logger.info("🎯 Bot polling started")

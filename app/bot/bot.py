@@ -6,7 +6,7 @@ from aiogram.types import BotCommand
 
 from app.config import settings
 from app.bot.handlers import routers
-from app.bot.middleware import CommandGuardMiddleware, NavDeleteMiddleware
+from app.bot.middleware import CommandGuardMiddleware, DbSessionMiddleware, NavDeleteMiddleware
 
 
 async def setup_default_commands(bot: Bot) -> None:
@@ -25,8 +25,13 @@ async def setup_bot() -> tuple[Bot, Dispatcher]:
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # Middlewares run in registration order. CommandGuard first (blocks flow interrupts),
-    # then NavDelete (removes nav messages from chat).
+    # Middleware chain (outermost → innermost, i.e. first registered runs first):
+    #   1. DbSession  — opens a fresh DB session + injects services for every update.
+    #   2. CommandGuard — blocks flow interrupts (needs services already in data).
+    #   3. NavDelete  — deletes navigation button messages to keep the chat clean.
+    db_middleware = DbSessionMiddleware()
+    dp.message.middleware(db_middleware)
+    dp.callback_query.middleware(db_middleware)
     dp.message.middleware(CommandGuardMiddleware())
     dp.message.middleware(NavDeleteMiddleware())
 

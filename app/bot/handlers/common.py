@@ -1,6 +1,7 @@
 """Common bot handlers."""
 
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message, User as TgUser
 
@@ -127,3 +128,21 @@ async def guard_cancel(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.edit_reply_markup(reply_markup=None)
 
     await callback.answer("Продовжуємо поточну дію.")
+
+
+@router.message(StateFilter(None))
+async def fallback_restore_state(
+    message: Message,
+    state: FSMContext,
+    user_service: UserService,
+) -> None:
+    """Restore the user's menu when FSM state is missing (e.g. after bot restart).
+
+    MemoryStorage loses all states on process restart. Instead of silently
+    ignoring messages, this handler detects the missing state and re-runs the
+    /start logic so the user lands on the correct role-based main menu without
+    having to type /start manually.
+    """
+    if message.from_user is None:
+        return
+    await _do_start(message.from_user, message, state, user_service)
